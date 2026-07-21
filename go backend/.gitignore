@@ -1,0 +1,23 @@
+# Muhit
+.env
+.env.local
+.env.production
+*.local
+
+# Binar
+/bin/
+*.exe
+
+# Go
+vendor/
+
+# IDE
+.idea/
+.vscode/
+
+# Loglar
+*.log
+logs/
+
+# Yuklab olingan media (avatarlar)
+/uploads/

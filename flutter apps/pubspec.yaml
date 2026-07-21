@@ -1,0 +1,55 @@
+name: ttysi_fit
+description: TTYSI_FIT — universitet sport platformasi (mobil ilova)
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Network
+  dio: ^5.7.0
+
+  # Xavfsiz token saqlash
+  flutter_secure_storage: ^9.2.2
+
+  # HEMIS OAuth (Custom Tab + deep link callback)
+  flutter_web_auth_2: ^4.1.0
+
+  # Routing
+  go_router: ^14.3.0
+
+  # Dizayn
+  flutter_animate: ^4.5.0
+
+  # Qadam sanagich: Health Connect (Android) / HealthKit (iOS)
+  health: ^13.3.1
+  permission_handler: ^12.0.3
+
+  intl: ^0.20.2
+
+  # Grafema klasterlari — ism bosh harflarini to'g'ri kesish uchun
+  # (str[0] UTF-16 kod birligini oladi va ba'zi belgilarni buzadi).
+  characters: ^1.4.0
+
+  # Mashg'ulot videosini tashqi ilovada ochish (YouTube/brauzer).
+  # Ilovaga video pleyer o'rnatilmagan: darsliklar tashqi xostingda turadi.
+  url_launcher: ^6.3.2
+  path_provider: ^2.1.6
+  open_filex: ^4.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

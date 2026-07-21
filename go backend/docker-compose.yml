@@ -1,0 +1,43 @@
+services:
+  # Backend API (ixtiyoriy — Windows Application Control exe'ni bloklasa ishlatiladi)
+  # Ishga tushirish: ./run.sh dev-docker
+  api:
+    build: .
+    container_name: ttysi_fit_api
+    ports:
+      - "8090:8090"
+    env_file: .env.local
+    environment:
+      # Konteyner ichidan host'dagi Postgres'ga
+      DB_HOST: host.docker.internal
+      # Redis — compose tarmog'i ichida (host porti emas)
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: ["api"]   # `docker compose up redis` bunga tegmaydi
+
+  redis:
+    image: redis:7-alpine
+    container_name: ttysi_fit_redis
+    restart: unless-stopped
+    ports:
+      # Host 6380 (boshqa loyihaning 6379 Redis'i bilan to'qnashmaslik uchun)
+      - "6380:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis_data:
