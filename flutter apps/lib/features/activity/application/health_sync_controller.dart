@@ -19,13 +19,44 @@ const kBackfillDays = 7;
 /// yubormaslik uchun (batareya + trafik + backend yuki).
 const kAutoSyncInterval = Duration(minutes: 15);
 
+/// HealthSyncState — sinxron holati.
+///
+/// `lastSyncAt` va `running` ATAYLAB ajratilgan. Avval `AsyncNotifier` va
+/// uning `AsyncLoading` holati ikkalasini ham bildirar edi va shu bilan
+/// jimgina nuqson tug'dirardi: `AsyncNotifier.build()` ASINXRON, ya'ni ilova
+/// sovuq ishga tushganda birinchi chaqiruvda state hali `AsyncLoading`
+/// bo'ladi. "Sinxron allaqachon ketyapti" deb hisoblanib, ilova ochilishidagi
+/// avtomatik sinxron HECH QACHON bajarilmasdi (fon'dan qaytish va tugma
+/// ishlagani uchun sezilmagan).
+class HealthSyncState {
+  const HealthSyncState({this.lastSyncAt, this.running = false, this.failed = false});
+
+  /// lastSyncAt — oxirgi MUVAFFAQIYATLI sinxron vaqti (throttle hisobi).
+  final DateTime? lastSyncAt;
+
+  /// running — ayni damda sinxron ketyaptimi (takroriy ishga tushmasin).
+  final bool running;
+
+  /// failed — oxirgi urinish xato bilan tugadimi (UI ko'rsatishi uchun).
+  final bool failed;
+
+  HealthSyncState copyWith({DateTime? lastSyncAt, bool? running, bool? failed}) =>
+      HealthSyncState(
+        lastSyncAt: lastSyncAt ?? this.lastSyncAt,
+        running: running ?? this.running,
+        failed: failed ?? this.failed,
+      );
+
+  bool get synced => lastSyncAt != null;
+}
+
 /// HealthSyncController — telefon → backend qadam sinxroni.
 ///
-/// State — oxirgi MUVAFFAQIYATLI sinxron vaqti (UI "oxirgi yangilanish"
-/// ni ko'rsatishi va throttle hisobi uchun).
-class HealthSyncController extends AsyncNotifier<DateTime?> {
+/// `Notifier` (AsyncNotifier emas): `build()` sinxron bo'lgani uchun holat
+/// birinchi o'qishdayoq tayyor va yuqoridagi poyga umuman yuzaga kelmaydi.
+class HealthSyncController extends Notifier<HealthSyncState> {
   @override
-  Future<DateTime?> build() async => null;
+  HealthSyncState build() => const HealthSyncState();
 
   /// sync — qo'lda (tugma) sinxron: throttle'siz, doim bajariladi.
   Future<HealthSyncResult> sync() => _run(force: true);
@@ -35,36 +66,48 @@ class HealthSyncController extends AsyncNotifier<DateTime?> {
   Future<HealthSyncResult> syncIfStale() => _run(force: false);
 
   Future<HealthSyncResult> _run({required bool force}) async {
+    // Takroriy ishga tushishdan himoya — qo'lda ham, avtomatik ham.
+    if (state.running) return HealthSyncResult.skipped;
+
     if (!force) {
-      final last = state.valueOrNull;
-      if (last != null &&
-          DateTime.now().difference(last) < kAutoSyncInterval) {
+      final last = state.lastSyncAt;
+      if (last != null && DateTime.now().difference(last) < kAutoSyncInterval) {
         return HealthSyncResult.skipped;
       }
-      // Allaqachon ishlab turgan bo'lsa ikkinchisini boshlamaymiz.
-      if (state.isLoading) return HealthSyncResult.skipped;
     }
 
-    final previous = state.valueOrNull;
-    state = const AsyncLoading();
+    state = state.copyWith(running: true, failed: false);
     try {
       final health = ref.read(healthServiceProvider);
 
-      // Qo'lda — kerak bo'lsa ruxsat so'raymiz; avtomatik — faqat
-      // allaqachon berilgan bo'lsa davom etamiz (ruxsat oynasi ilova
-      // ochilishi bilan o'zicha chiqib kelmasin).
-      final granted = force
-          ? await health.requestPermissions()
-          : await health.hasPermissions();
-      if (!granted) {
-        state = AsyncData(previous);
-        return HealthSyncResult.noPermission;
+      if (force) {
+        // Qo'lda: kerak bo'lsa ruxsat oynasini ko'rsatamiz.
+        if (!await health.requestPermissions()) {
+          state = state.copyWith(running: false);
+          return HealthSyncResult.noPermission;
+        }
+      } else {
+        // Avtomatik: ruxsat SO'RALMAYDI (oyna ilova ochilishi bilan
+        // o'zicha chiqib kelmasin).
+        //
+        // Lekin `hasPermissions()` bilan ham GATE qilmaymiz: Health Connect
+        // o'qish ruxsatini ishonchli tekshirib bo'lmaydi va u ko'p holatda
+        // `null` (noma'lum) qaytaradi. Avval null "rad etilgan" deb
+        // hisoblanib, ilova ochilishidagi sinxron JIMGINA to'xtardi.
+        //
+        // O'rniga shunchaki O'QIB KO'RAMIZ: ruxsat yo'q bo'lsa o'qish bo'sh
+        // qaytadi yoki xato beradi — ikkalasi ham quyida jim ushlanadi.
+        // O'qish hech qanday oyna ko'rsatmaydi.
+        if (await health.hasPermissions() == false) {
+          state = state.copyWith(running: false);
+          return HealthSyncResult.noPermission;
+        }
       }
 
       // Bugun emas, oxirgi kunlar: ilova ochilmagan kunlar ham tiklanadi.
       final records = await health.readRecentDays(days: kBackfillDays);
       if (records.isEmpty) {
-        state = AsyncData(previous);
+        state = state.copyWith(running: false);
         return HealthSyncResult.noData;
       }
 
@@ -74,10 +117,10 @@ class HealthSyncController extends AsyncNotifier<DateTime?> {
       // Statistika qayta o'qilsin (backend upsert qildi).
       ref.invalidate(activityStatsProvider);
 
-      state = AsyncData(DateTime.now());
+      state = HealthSyncState(lastSyncAt: DateTime.now());
       return HealthSyncResult.success;
-    } catch (e, st) {
-      state = AsyncError(e, st);
+    } catch (_) {
+      state = state.copyWith(running: false, failed: true);
       return HealthSyncResult.error;
     }
   }
@@ -86,5 +129,5 @@ class HealthSyncController extends AsyncNotifier<DateTime?> {
 /// autoDispose EMAS: oxirgi sinxron vaqti tab almashganda ham saqlanishi
 /// kerak, aks holda throttle ishlamay har tab ochilganda so'rov ketardi.
 final healthSyncProvider =
-    AsyncNotifierProvider<HealthSyncController, DateTime?>(
+    NotifierProvider<HealthSyncController, HealthSyncState>(
         HealthSyncController.new);

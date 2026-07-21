@@ -15,17 +15,30 @@ import (
 // millionlab qator yasab serverni cho'ktirishi mumkin (§17.3 #39).
 const maxRangeDays = 366
 
+// maxConcurrentExports — bir vaqtda ruxsat etilgan eksport soni.
+//
+// Eksport uzoq davom etadi va DB ulanishini band qiladi. Pool 25 ta
+// ulanishdan iborat (§13.1) — cheklovsiz bir necha admin bir vaqtda
+// eksport bosса butun ilova javob bermay qolardi (§17.3 #39).
+const maxConcurrentExports = 2
+
 // AnalyticsService — admin dashboard va hisobotlar use-case qatlami.
 type AnalyticsService struct {
 	repo domain.AnalyticsRepository
 	loc  *time.Location
+	// exportSlots — bo'sh joy tokenlari (semafor).
+	exportSlots chan struct{}
 }
 
 func NewAnalyticsService(repo domain.AnalyticsRepository, loc *time.Location) *AnalyticsService {
 	if loc == nil {
 		loc = time.UTC
 	}
-	return &AnalyticsService{repo: repo, loc: loc}
+	return &AnalyticsService{
+		repo:        repo,
+		loc:         loc,
+		exportSlots: make(chan struct{}, maxConcurrentExports),
+	}
 }
 
 // Filter — davr nomi va fakultetdan AnalyticsFilter yasaydi.
@@ -97,6 +110,17 @@ func (s *AnalyticsService) Get(ctx context.Context, f domain.AnalyticsFilter) (*
 }
 
 // StreamUserActivity — eksport qatorlarini birma-bir uzatadi.
+//
+// Bo'sh joy bo'lmasa KUTMAYDI, darrov ErrBusy qaytaradi: admin "yuklanmoqda"
+// holatida osilib qolgandan ko'ra "birozdan keyin urinib ko'ring" xabarini
+// olgani yaxshi.
 func (s *AnalyticsService) StreamUserActivity(ctx context.Context, f domain.AnalyticsFilter, fn func(domain.UserActivityRow) error) error {
+	select {
+	case s.exportSlots <- struct{}{}:
+		defer func() { <-s.exportSlots }()
+	default:
+		return domain.ErrBusy
+	}
+
 	return s.repo.StreamUserActivity(ctx, f, fn)
 }

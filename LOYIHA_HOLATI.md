@@ -1,6 +1,6 @@
 # TTYSI_FIT — Loyiha holati hisoboti
 
-**Sana:** 2026-07-18
+**Sana:** 2026-07-21
 **Asos:** `TTYSI_FIT.docx` (10 funksional yo'nalish + admin panel) bilan solishtirma.
 
 TTYSI_FIT — institut talabalari va o'qituvchilarini sportga jalb qilish, jismoniy faollikni monitoring qilish va elektron reyting orqali rag'batlantirish uchun mobil platforma (Flutter ilova + Go backend + Nuxt admin panel).
@@ -12,12 +12,13 @@ TTYSI_FIT — institut talabalari va o'qituvchilarini sportga jalb qilish, jismo
 | Qatlam | Holat |
 |--------|-------|
 | Texnik poydevor (auth, HEMIS sync, infratuzilma) | Tayyor |
-| Backend funksiyalari | ~85% (10 modul; qolgani analitika/eksport, sertifikat PDF) |
-| Mobil ilova | ~70% (asosiy ekranlar ishlaydi, qadam sanagich ulangan) |
-| Admin panel | ~75% (11 sahifa; qolgani yutuqlar sahifasi, hisobot eksport) |
+| Backend funksiyalari | ~95% (12 modul; analitika, eksport, do'kon tayyor) |
+| Mobil ilova | ~85% (qadam sinxroni ishonchli, do'kon qo'shildi) |
+| Admin panel | ~95% (15 sahifa) |
 
-Hujjatdagi 10 yo'nalishning 8 tasi ishlaydigan holatda. Qolgan asosiy ish —
-**analitika/hisobot eksport** va **sertifikat generatsiyasi (PDF)**.
+Hujjatdagi 10 yo'nalishning hammasi ishlaydigan holatda. Qolgan asosiy ish —
+kichikroq bo'shliqlar (faollik turlari, turnir jadvallari, mashg'ulot
+dasturlari) va institutdan muhr/imzo skanini olish.
 
 ---
 
@@ -49,6 +50,12 @@ Hujjatdagi 10 yo'nalishning 8 tasi ishlaydigan holatda. Qolgan asosiy ish —
 - ✅ **Backfill** — har sinxronda oxirgi 7 kun `POST /activities/batch` orqali
   bitta so'rovda; foydalanuvchi bir hafta ilovani ochmasa ham kun yo'qolmaydi
 - ✅ **Vaqt mintaqasi** — kun chegarasi `APP_TIMEZONE` (Asia/Tashkent) bo'yicha
+- ✅ **Ruxsat onboarding** — birinchi kirishda tushuntirish oynasi (nima uchun
+  kerak + maxfiylik), ruxsat berilmasa bosh sahifada eslatma kartasi turadi
+- ✅ **Reyting himoyasi** — reytingga faqat `health_connect` / `healthkit`
+  manbali faollik kiradi; qo'lda kiritish mobil ilovadan olib tashlangan
+- ✅ **Admin tuzatish** — `DELETE /admin/users/:id/activities?from=&to=`
+  (hisobot sahifasida forma); audit loglanadi
 - ❌ Yugurish/yurish/velosiped turlarini ajratish (hozir umumiy)
 - ❌ Faol daqiqa (`active_min`) hali doim 0 — Health Connect EXERCISE_SESSION'dan olinmagan
 
@@ -63,11 +70,16 @@ Hujjatdagi 10 yo'nalishning 8 tasi ishlaydigan holatda. Qolgan asosiy ish —
 - ✅ Mobil "Tadbirlar" tabi, admin `competitions.vue`
 - 🟡 Turnir jadvallari / bosqichli natijalar hali yo'q
 
-### 5. Rag'batlantirish va bonus (FIT Coin) — 🟢 ~85%
+### 5. Rag'batlantirish va bonus (FIT Coin) — 🟢 ~95%
 - ✅ FIT Coin ledger (append-only), balans, tarix, admin grant/revoke
 - ✅ Chellenj, musobaqa va **yutuq** mukofotlari ledger'ga idempotent yoziladi
 - ✅ Mobil FIT Coin ko'rinishi, admin `fit-coins.vue`
-- ❌ Sovg'alarga almashtirish (do'kon) yo'q
+- ✅ **Sovg'alar do'koni** — `rewards` + `reward_redemptions` (15-migratsiya):
+  admin CRUD (`rewards.vue`), mobil do'kon, kod bilan topshirish
+- ✅ **Almashtirish bitta tranzaksiyada**: sovg'a `FOR UPDATE` bilan bloklanadi,
+  miqdor/shaxsiy limit/balans tekshiriladi, ledger'ga manfiy yozuv tushadi
+- ✅ **Bekor qilishda coin qaytadi** (musbat ledger yozuvi) va miqdor tiklanadi
+- ❌ Yetkazib berish/manzil (hozir faqat qo'lda topshirish)
 
 ### 6. Sport mashg'ulotlari bo'limi — 🟢 ~90%
 - ✅ Video mashg'ulotlar CRUD, kategoriya (backenddan) + daraja filtri
@@ -98,11 +110,12 @@ Hujjatdagi 10 yo'nalishning 8 tasi ishlaydigan holatda. Qolgan asosiy ish —
 - ❌ Rejali (avtomatik) hisobot yuborish — hozir faqat qo'lda yuklab olish
 
 ### 10. Admin-panel — 🟢 ~95%
-- ✅ 13 sahifa: users, faculties, departments, groups, hemis, ratings,
-  challenges, competitions, fit-coins, news, trainings, achievements, **reports**
+- ✅ 15 sahifa: users, faculties, departments, groups, hemis, ratings,
+  challenges, competitions, fit-coins, news, trainings, achievements, reports,
+  **rewards**, **redemptions**
 - ✅ Dashboard analitikasi: grafiklar + filtrlar
-- ✅ Light/Dark UI, responsive, Playwright e2e testlar (**32 ta**, shundan
-  3 tasi 375/768/1280px kengliklarida gorizontal toshishni tekshiradi)
+- ✅ Light/Dark UI, responsive, Playwright e2e testlar (**42 ta**, shundan
+  7 tasi 375/768/1280px kengliklarida gorizontal toshishni tekshiradi)
 - ✅ Hisobot eksport (CSV)
 
 ---
@@ -112,11 +125,16 @@ Hujjatdagi 10 yo'nalishning 8 tasi ishlaydigan holatda. Qolgan asosiy ish —
 - **Autentifikatsiya:** JWT access + refresh (rotatsiya), avtomatik token yangilash
 - **HEMIS OAuth:** talaba + xodim, bir martalik code orqali xavfsiz mobil oqim
 - **HEMIS sync:** strukturalar, guruhlar, talabalar, xodimlar (rate-limit, dedup)
-- **14 migratsiya:** users, faculties, structures, groups, activities, challenges,
-  fit_coins, competitions, news, trainings, achievements
+- **15 migratsiya:** users, faculties, structures, groups, activities, challenges,
+  fit_coins, competitions, news, trainings, achievements, rewards
 - **Dinamik kontent (§16):** chellenj, musobaqa va yutuq turlari registr orqali —
   yangi tur qo'shish migration ham, frontend o'zgarishi ham talab qilmaydi
-- **Testlar:** Go (domain + handler), Flutter 32 test, Playwright e2e
+- **Testlar:** Go (domain + service + handler + pkg), Flutter 69 test, Playwright 42 e2e
+- **CI (`.github/workflows/ci.yml`):** 4 ta ish — Go (build/vet/`test -race`/
+  gofmt/`govulncheck`), Nuxt (`npm audit --omit=dev`/build), Flutter
+  (analyze/test), E2E (postgres+redis servis, migratsiya, backend, Playwright)
+- **Bog'liqliklar zaifliksiz:** `govulncheck` — 0; `npm audit --omit=dev` — 0
+  (yuqori va undan katta)
 
 ---
 
@@ -132,8 +150,8 @@ Hujjatdagi 10 yo'nalishning 8 tasi ishlaydigan holatda. Qolgan asosiy ish —
    olib, serverga qo'yish — kod o'zgarishi kerak emas.
 3. Kichikroq bo'shliqlar: faollik turlari (yugurish/velosiped), turnir
    jadvallari, mashg'ulot dasturlari (bir necha mashg'ulotdan iborat kurs).
-4. **Sovg'alar do'koni** — FIT Coin'ni nimagadir almashtirish (hozir faqat
-   yig'iladi).
+4. ~~**Sovg'alar do'koni**~~ — ✅ bajarildi (2026-07-21): admin CRUD, mobil
+   do'kon, kod bilan topshirish, bekor qilishda coin qaytarish.
 
 ---
 
@@ -161,18 +179,33 @@ Hujjatdagi 10 yo'nalishning 8 tasi ishlaydigan holatda. Qolgan asosiy ish —
 - **Avtomatik yutuq baholash** faollik yozilganda sinxron ishlaydi
   (`ActivityService.Record`). Foydalanuvchi ko'payganda bu qadam sekinlashsa,
   navbatga (queue) ko'chirish kerak bo'ladi.
+- **Do'kon almashtirish tranzaksiyasi** sovg'a qatorini `FOR UPDATE` bilan
+  bloklaydi. Oxirgi donani ikki kishi bir vaqtda ololmaydi, lekin bu bitta
+  sovg'aga kelgan xaridlar KETMA-KET bajarilishini bildiradi — juda ommabop
+  sovg'ada kutish paydo bo'lishi mumkin.
+- **Buyurtma kodi `crypto/rand` bilan** yasaladi (taxmin qilib bo'lmasin) va
+  chalkashadigan belgilar (0/O, 1/I) olib tashlangan — kod og'zaki aytiladi.
+- **Sovg'a narxi buyurtmada QOTIRILADI** — admin keyin narxni o'zgartirsa
+  eski buyurtma va uning coin yozuvi mos qoladi.
 - **`rating` COUNT** katta jadvalda sekinlashishi mumkin — §14.2 bo'yicha
   cache yoki taxminiy hisob kerak bo'ladi.
 - **Faollik turlari** (yugurish/yurish/velosiped) ajratilmagan.
 - **`APP_TIMEZONE` production'da ham qo'yilishi shart** — qo'yilmasa default
   `Asia/Tashkent` oladi, lekin noto'g'ri qiymat berilsa server umuman
   ishga tushmaydi (jim UTC'ga qaytmaydi — bu ataylab shunday).
-- **Faollik upsert'i `GREATEST`** — qiymat kamaymaydi. Ya'ni xato katta qiymat
-  (masalan test paytida) yozilsa, uni oddiy qayta sinxron bilan tuzatib
-  bo'lmaydi; DB dan qo'lda o'chirish kerak.
-- **Avtomatik sinxron ruxsat so'ramaydi** — foydalanuvchi hech qachon
-  "Sinxronlash" tugmasini bosmasa, qadamlari umuman yuklanmaydi. Onboarding'da
-  bir marta so'rash kerak bo'ladi.
+- **Faollik upsert'i `GREATEST`** — qiymat kamaymaydi. Xato katta qiymat
+  yozilsa qayta sinxron uni TUZATMAYDI. Endi buni admin panel orqali
+  tuzatish mumkin: Hisobotlar → "Faollikni tuzatish" (oraliqni o'chiradi,
+  telefon oxirgi 7 kunni qayta yuboradi). Bir martada maksimum 92 kun.
+- **Reytingga faqat qurilma ma'lumoti kiradi** (`rating_repository.
+  trustedSourceCond`). Qo'lda kiritilgan faollik shaxsiy statistikada
+  qoladi, lekin musobaqaga ta'sir qilmaydi — aks holda `POST /activities`
+  ga katta son yuborib birinchi o'ringa chiqish mumkin edi.
+- **Avtomatik sinxron ruxsat so'ramaydi** (ataylab — ilova ochilishi bilan
+  tizim oynasi chiqishi foydalanuvchini cho'chitadi). Buning o'rniga birinchi
+  kirishda tushuntirish oynasi chiqadi, rad etilsa bosh sahifada eslatma
+  kartasi qoladi. **Android'da ruxsat bir marta rad etilsa qayta so'rab
+  bo'lmaydi** — shuning uchun oyna avval sababni tushuntiradi.
 - **Fakultet = `structures` yozuvi**, `faculties` jadvali 00004-migratsiyada
   olib tashlangan. Yangi so'rov yozganda `users.faculty_id → structures.id`
   bog'lanishidan foydalaning.

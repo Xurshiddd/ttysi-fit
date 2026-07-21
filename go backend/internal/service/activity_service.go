@@ -15,6 +15,10 @@ import (
 // Mijoz odatda oxirgi 7 kunni yuboradi; 31 zaxira bilan (oy) cheklangan.
 const maxBatchDays = 31
 
+// maxDeleteRange — admin bir martada o'chira oladigan maksimal oraliq.
+// Xato bosilgan tugma bilan butun yillik tarix yo'qolib ketmasin.
+const maxDeleteRange = 92 * 24 * time.Hour
+
 // AchievementEvaluator — faollik yozilgach avtomatik yutuqlarni baholaydi.
 //
 // Interfeys sifatida e'lon qilingan: ActivityService AchievementService ga
@@ -143,6 +147,41 @@ func (s *ActivityService) List(ctx context.Context, userID uuid.UUID, from, to t
 // Stats — bugun/hafta/oy/jami yig'ma.
 func (s *ActivityService) Stats(ctx context.Context, userID uuid.UUID) (*domain.ActivityStats, error) {
 	return s.repo.Stats(ctx, userID, s.today())
+}
+
+// DeleteRange — foydalanuvchining oraliqdagi faolligini o'chiradi (admin).
+//
+// NEGA KERAK: upsert GREATEST bilan ishlaydi — bir marta yozilgan katta
+// qiymatni qayta sinxron TUZATMAYDI. Xato (yoki soxta) yozuv paydo
+// bo'lsa uni o'chirishdan boshqa yo'l yo'q edi; DB'ga qo'l bilan kirmasdan
+// buni qilish imkoni bo'lishi kerak.
+//
+// O'chirilgandan keyin telefon oxirgi 7 kunni qayta yuboradi va haqiqiy
+// qiymatlar o'z-o'zidan tiklanadi.
+func (s *ActivityService) DeleteRange(ctx context.Context, userID uuid.UUID, fromStr, toStr string) (int64, error) {
+	from, err := time.ParseInLocation("2006-01-02", fromStr, s.loc)
+	if err != nil {
+		return 0, fmt.Errorf("%w: from sanasi", domain.ErrValidation)
+	}
+	to, err := time.ParseInLocation("2006-01-02", toStr, s.loc)
+	if err != nil {
+		return 0, fmt.Errorf("%w: to sanasi", domain.ErrValidation)
+	}
+	if to.Before(from) {
+		return 0, fmt.Errorf("%w: oraliq teskari", domain.ErrValidation)
+	}
+	// Bir martada butun tarixni o'chirib yuborishdan himoya: xato bosilgan
+	// tugma bilan yillik ma'lumot yo'qolmasin.
+	if to.Sub(from) > maxDeleteRange {
+		return 0, fmt.Errorf("%w: oraliq %d kundan oshmasin",
+			domain.ErrValidation, int(maxDeleteRange.Hours()/24))
+	}
+
+	n, err := s.repo.DeleteRange(ctx, userID, from, to)
+	if err != nil {
+		return 0, fmt.Errorf("ActivityService.DeleteRange: %w", err)
+	}
+	return n, nil
 }
 
 // Today — mahalliy mintaqadagi bugungi sana (handler ham foydalanadi).

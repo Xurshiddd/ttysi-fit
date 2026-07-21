@@ -18,17 +18,32 @@ func NewRatingRepository(db *gorm.DB) domain.RatingRepository {
 	return &ratingRepository{db: db}
 }
 
-// periodCond — davr bo'yicha activities JOIN sharti (CLAUDE.md §13.4 namunasi).
+// trustedSourceCond — reytingga FAQAT qurilmadan kelgan faollik kiradi.
+//
+// NEGA: `POST /activities` istalgan foydalanuvchiga o'z qadamini yozishga
+// ruxsat beradi (qo'lda kiritish uchun mo'ljallangan edi), upsert esa
+// GREATEST — ya'ni bir marta yozilgan katta qiymatni qaytarib bo'lmaydi.
+// Shu ikkisi birga reytingni ochiq qoldirardi: "200000 qadam" yuborgan
+// foydalanuvchi abadiy birinchi o'rinda turaverardi.
+//
+// Qo'lda kiritilgan faollik SHAXSIY statistikada qoladi (foydalanuvchi
+// o'zi uchun yuritishi mumkin), lekin musobaqa reytingiga kirmaydi.
+// Manba ro'yxati kodda: uni mijoz belgilaydi, admin siyosati emas.
+const trustedSourceCond = " AND a.source IN ('health_connect', 'healthkit')"
+
+// periodCond — davr va manba bo'yicha activities JOIN sharti
+// (CLAUDE.md §13.4 namunasi).
+//
 // Davr qiymati handler'da enum bilan validatsiya qilinadi — SQL'ga user input
 // tushmaydi (§3.2), bu yerda faqat oldindan yozilgan constant satrlar.
 func periodCond(p domain.RatingPeriod) string {
 	switch p {
 	case domain.PeriodWeek:
-		return " AND a.activity_date >= CURRENT_DATE - INTERVAL '6 days'"
+		return " AND a.activity_date >= CURRENT_DATE - INTERVAL '6 days'" + trustedSourceCond
 	case domain.PeriodMonth:
-		return " AND a.activity_date >= CURRENT_DATE - INTERVAL '29 days'"
+		return " AND a.activity_date >= CURRENT_DATE - INTERVAL '29 days'" + trustedSourceCond
 	default: // PeriodAll
-		return ""
+		return trustedSourceCond
 	}
 }
 

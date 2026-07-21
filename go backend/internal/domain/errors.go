@@ -19,4 +19,8 @@ var (
 	// ErrFutureDate — kelajakdagi kunga faollik yozib bo'lmaydi (mijoz soati
 	// noto'g'ri yoki reytingni sun'iy ko'tarish urinishi).
 	ErrFutureDate = errors.New("kelajakdagi sana")
+
+	// ErrBusy — resurs band (masalan bir vaqtda ruxsat etilgan eksport soni
+	// tugagan). Mijoz birozdan keyin qayta urinishi mumkin.
+	ErrBusy = errors.New("hozir band")
 )

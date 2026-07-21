@@ -14,6 +14,7 @@ const (
 	MsgNotFound         = "common.not_found"
 	MsgValidationFailed = "common.validation_failed"
 	MsgInternalError    = "common.internal_error"
+	MsgBusy             = "common.busy"
 	MsgTooManyRequests  = "common.too_many_requests"
 	MsgRequestTooLarge  = "common.request_too_large"
 
@@ -90,6 +91,11 @@ var catalog = map[string]map[Locale]string{
 		UZ: "Ichki xato yuz berdi",
 		RU: "Произошла внутренняя ошибка",
 		EN: "An internal error occurred",
+	},
+	MsgBusy: {
+		UZ: "Tizim hozir band — birozdan keyin urinib ko'ring",
+		RU: "Система занята — попробуйте чуть позже",
+		EN: "The system is busy — please try again shortly",
 	},
 	MsgTooManyRequests: {
 		UZ: "So'rovlar soni ko'payib ketdi, birozdan keyin urinib ko'ring",

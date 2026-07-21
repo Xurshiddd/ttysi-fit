@@ -11,10 +11,10 @@ import (
 )
 
 // Chellenj turlari (CLAUDE.md §16.1). Yangi tur qo'shish uchun:
-//   1) shu yerga konstanta,
-//   2) challengeTypes registriga spec,
-//   3) tamom — migration ham, admin panel formasi ham o'zgarmaydi
-//      (forma GET /challenge-types dan dinamik yasaladi).
+//  1. shu yerga konstanta,
+//  2. challengeTypes registriga spec,
+//  3. tamom — migration ham, admin panel formasi ham o'zgarmaydi
+//     (forma GET /challenge-types dan dinamik yasaladi).
 type ChallengeType string
 
 const (

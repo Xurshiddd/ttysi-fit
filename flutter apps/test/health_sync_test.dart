@@ -10,7 +10,11 @@
 //
 // 2) Throttle. Ilova har fokusga qaytganda sinxron qilinsa telefon va
 //    backend bekorga yuklanadi. syncIfStale oralig'ni hurmat qilishi kerak.
+//
+// 3) Sovuq start. Pastdagi guruhga qarang — avtomatik sinxron ilova
+//    ochilganda umuman ishlamay qolgan edi.
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ttysi_fit/features/activity/application/health_sync_controller.dart';
@@ -51,7 +55,7 @@ void main() {
 
   group('Sinxron sozlamalari', () {
     test('backfill kamida bir haftani qamraydi', () {
-      // Foydalanuvchi ilovani haftada bir marta ochsa ham kun yo\'qolmasin.
+      // Foydalanuvchi ilovani haftada bir marta ochsa ham kun yo'qolmasin.
       expect(kBackfillDays, greaterThanOrEqualTo(7));
     });
 
@@ -61,6 +65,58 @@ void main() {
 
     test('skipped natijasi mavjud — throttle jim o\'tishi uchun', () {
       expect(HealthSyncResult.values, contains(HealthSyncResult.skipped));
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────
+  // REGRESSIYA: sovuq startda avtomatik sinxron ishlamay qolgan edi.
+  //
+  // Sabab: holat `AsyncNotifier` edi va `_run` "sinxron ketyaptimi" ni
+  // `state.isLoading` orqali tekshirardi. `AsyncNotifier.build()` ASINXRON,
+  // shuning uchun ilova endi ochilganda birinchi chaqiruvda state hali
+  // `AsyncLoading` bo'lardi — sinxron "allaqachon ketyapti" deb o'tkazib
+  // yuborilardi va HECH QACHON bajarilmasdi.
+  //
+  // Nuqson uzoq sezilmadi: fon'dan qaytish va "Sinxronlash" tugmasi
+  // ishlardi. Buzilgani esa aynan eng ko'p uchraydigan holat edi —
+  // foydalanuvchi ilovani ochishi.
+  group('Sovuq start (regressiya)', () {
+    test('boshlang\'ich holat DARROV tayyor — AsyncLoading bosqichi yo\'q', () {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+
+      // Sinxron o'qiladi: hech qanday await kerak emas.
+      final st = c.read(healthSyncProvider);
+
+      expect(st.running, isFalse,
+          reason: 'sovuq startda "ketyapti" deb belgilangan — '
+              'avtomatik sinxron o\'tkazib yuborilardi');
+      expect(st.lastSyncAt, isNull);
+      expect(st.synced, isFalse);
+    });
+
+    test('throttle faqat MUVAFFAQIYATLI sinxrondan keyin ishlaydi', () {
+      // lastSyncAt null — hali sinxron bo'lmagan, to'siq yo'q.
+      const fresh = HealthSyncState();
+      expect(fresh.synced, isFalse);
+
+      final done = HealthSyncState(lastSyncAt: DateTime.now());
+      expect(done.synced, isTrue);
+    });
+
+    test('running va lastSyncAt alohida — biri ikkinchisini bildirmaydi', () {
+      final s = HealthSyncState(lastSyncAt: DateTime.now(), running: true);
+      expect(s.running, isTrue);
+      expect(s.synced, isTrue);
+    });
+
+    test('copyWith holatni tasodifan tozalamaydi', () {
+      final base = HealthSyncState(lastSyncAt: DateTime(2026, 7, 21));
+      final busy = base.copyWith(running: true);
+
+      expect(busy.lastSyncAt, base.lastSyncAt,
+          reason: 'sinxron boshlanganda oxirgi vaqt yo\'qoldi — '
+              'throttle qayta ishlamay qolardi');
     });
   });
 }

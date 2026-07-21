@@ -50,20 +50,27 @@ class HealthService {
     return await _health.requestAuthorization(_types);
   }
 
-  /// hasPermissions — ruxsat allaqachon berilganini SO'RAMASDAN tekshiradi.
+  /// hasPermissions — ruxsat holatini SO'RAMASDAN tekshiradi.
   ///
-  /// Avtomatik (jim) sinxron uchun: ilova ochilishi bilan ruxsat oynasi
-  /// chiqib kelishi foydalanuvchini cho'chitadi va nima uchun so'ralayotgani
-  /// tushunarsiz bo'ladi. Ruxsat faqat "Sinxronlash" tugmasi bosilganda,
-  /// ya'ni foydalanuvchi o'zi xohlaganda so'raladi.
-  Future<bool> hasPermissions() async {
+  /// `null` — HOLAT NOMA'LUM (rad etilgan degani EMAS).
+  ///
+  /// MUHIM: Health Connect o'qish ruxsatini ishonchli so'rab bo'lmaydi —
+  /// `health` paketi ko'p holatda `null` qaytaradi. Avval bu `?? false` bilan
+  /// "rad etilgan" deb hisoblanardi va natijada ilova ochilishidagi
+  /// avtomatik sinxron JIMGINA to'xtardi (tugma esa ishlardi, chunki u
+  /// `requestAuthorization` chaqiradi va u to'g'ri javob beradi).
+  ///
+  /// `ACTIVITY_RECOGNITION` esa oddiy Android ruxsati — u ishonchli
+  /// tekshiriladi va qadam o'qish uchun majburiy, shuning uchun u rad
+  /// etilgan bo'lsa aniq `false` qaytaramiz.
+  Future<bool?> hasPermissions() async {
     await _ensureConfigured();
 
     if (Platform.isAndroid &&
         !await Permission.activityRecognition.isGranted) {
-      return false;
+      return false; // aniq: ruxsat yo'q
     }
-    return await _health.hasPermissions(_types) ?? false;
+    return await _health.hasPermissions(_types); // true | false | null
   }
 
   /// Manba nomi (backend `source` ustuni uchun).

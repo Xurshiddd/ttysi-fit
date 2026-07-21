@@ -5,11 +5,11 @@ import "encoding/json"
 // CompetitionRequest — admin musobaqa yaratadi/yangilaydi (§16.3).
 // `config` turga bog'liq — uni domain registri tekshiradi (ValidateCompetitionConfig).
 type CompetitionRequest struct {
-	Type        string          `json:"type" binding:"required"`
-	Title       string          `json:"title" binding:"required,min=3,max=255"`
-	Description string          `json:"description" binding:"omitempty,max=5000"`
-	Scope       string          `json:"scope" binding:"omitempty,oneof=university faculty group"`
-	Status      string          `json:"status" binding:"omitempty,oneof=draft registration ongoing finished"`
+	Type        string `json:"type" binding:"required"`
+	Title       string `json:"title" binding:"required,min=3,max=255"`
+	Description string `json:"description" binding:"omitempty,max=5000"`
+	Scope       string `json:"scope" binding:"omitempty,oneof=university faculty group"`
+	Status      string `json:"status" binding:"omitempty,oneof=draft registration ongoing finished"`
 
 	StartsAt  *string `json:"starts_at" binding:"omitempty,datetime=2006-01-02T15:04:05Z07:00"`
 	EndsAt    *string `json:"ends_at" binding:"omitempty,datetime=2006-01-02T15:04:05Z07:00"`

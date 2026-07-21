@@ -7,6 +7,7 @@ import '../../achievement/application/achievement_providers.dart';
 import '../../achievement/presentation/achievements_card.dart';
 import '../../activity/application/activity_providers.dart';
 import '../../fitcoin/presentation/coin_balance_card.dart';
+import '../../reward/presentation/reward_shop_card.dart';
 import '../../rating/application/rating_providers.dart';
 import '../application/profile_providers.dart';
 import '../data/profile_models.dart';
@@ -51,6 +52,11 @@ class ProfileTab extends ConsumerWidget {
             const _StatsCard(),
             const SizedBox(height: 12),
             const CoinBalanceCard(),
+            const SizedBox(height: 12),
+            // Do'kon — coin YIG'ILGANIDAN keyin sarflanadigan joy.
+            // Balans kartasidan keyin turadi: foydalanuvchi avval nechta
+            // coini borligini ko'radi, keyin nima olishini.
+            const RewardShopCard(),
             const SizedBox(height: 12),
             const AchievementsCard(),
             const SizedBox(height: 16),

@@ -1,0 +1,220 @@
+# TTYSI_FIT — uzluksiz integratsiya.
+#
+# CLAUDE.md §17.4 talab qiladi: `go test -race`, `govulncheck`, `npm audit`.
+# Bu yerda ularga Flutter testlari va Playwright e2e ham qo'shilgan.
+#
+# Ishlar ATAYLAB alohida: mobil ilova testi backend yiqilganda ham
+# ishlashi kerak va aksincha — qaysi qatlam buzilganini darrov ko'rsatadi.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Bir branchda yangi push bo'lsa eskisini bekor qilamiz: navbat tiqilib
+# qolmasin va CI natijasi doim oxirgi kodga tegishli bo'lsin.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "go backend"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go backend/go.mod"
+          cache-dependency-path: "go backend/go.sum"
+
+      - name: Bog'liqliklar
+        run: go mod download
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      # -race MAJBURIY (§11.3): goroutine'lardagi poyga faqat shu bayroq
+      # bilan ko'rinadi va odatda faqat production yuklamasida yuzaga chiqadi.
+      - name: Testlar (race detector bilan)
+        run: go test ./... -race -count=1
+
+      - name: Formatlash tekshiruvi
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt qilinmagan fayllar:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # §17.3 #48 — bog'liqlik zaifliklari.
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  admin:
+    name: Admin panel (Nuxt)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nuxt-admin-panel
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nuxt-admin-panel/package-lock.json
+
+      - name: Bog'liqliklar
+        run: npm ci
+
+      # §17.3 #48. --omit=dev: production bundle'ga tushadigan paketlar.
+      # Dev bog'liqliklaridagi zaiflik foydalanuvchiga yetib bormaydi.
+      - name: npm audit (production)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build
+        run: npx nuxt build
+
+  mobile:
+    name: Mobil ilova (Flutter)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "flutter apps"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Bog'liqliklar
+        run: flutter pub get
+
+      # Analyze xatolarni bloklaydi. Mavjud `info` darajali ogohlantirishlar
+      # (prefer_const) build'ni to'xtatmaydi.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Testlar
+        run: flutter test
+
+  e2e:
+    name: E2E (admin panel + backend)
+    runs-on: ubuntu-latest
+    # Qatlamlar alohida o'tmaguncha e2e ni ishga tushirishning ma'nosi yo'q.
+    needs: [backend, admin]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ttysi_fit_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_ENV: local
+      APP_PORT: "8090"
+      APP_TIMEZONE: Asia/Tashkent
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: ttysi_fit_test
+      DB_SSLMODE: disable
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      JWT_ACCESS_SECRET: ci-test-access-secret-kamida-32-belgi-bolsin
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-kamida-32-belgi-farqli
+      # E2E testlari sinov admini bilan kiradi (e2e/helpers.ts).
+      E2E_BASE_URL: http://localhost:3100
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go backend/go.mod"
+          cache-dependency-path: "go backend/go.sum"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nuxt-admin-panel/package-lock.json
+
+      - name: Migratsiya
+        working-directory: "go backend"
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@latest
+          goose -dir migrations postgres \
+            "host=$DB_HOST port=$DB_PORT user=$DB_USER password=$DB_PASSWORD dbname=$DB_NAME sslmode=disable" up
+
+      # e2e/helpers.ts dagi ADMIN bilan bir xil bo'lishi SHART.
+      - name: Sinov admini
+        working-directory: "go backend"
+        run: go run ./cmd/createadmin test@ttyesi.uz parol123 "Test User"
+
+      - name: Backend'ni ko'tarish
+        working-directory: "go backend"
+        run: |
+          go build -o /tmp/api ./cmd/api
+          /tmp/api &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8090/api/v1/health >/dev/null; then
+              echo "backend tayyor"; exit 0
+            fi
+            sleep 2
+          done
+          echo "backend ko'tarilmadi"; exit 1
+
+      - name: Bog'liqliklar (admin panel)
+        working-directory: nuxt-admin-panel
+        run: npm ci
+
+      - name: Playwright brauzeri
+        working-directory: nuxt-admin-panel
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E testlar
+        working-directory: nuxt-admin-panel
+        run: npx playwright test
+
+      # Yiqilganda sabab ko'rinishi uchun.
+      - name: Natijalarni saqlash
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-natijalar
+          path: nuxt-admin-panel/test-results/
+          retention-days: 7

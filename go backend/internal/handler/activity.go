@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/ttysi-fit/backend/internal/domain"
 	"github.com/ttysi-fit/backend/internal/dto"
 	"github.com/ttysi-fit/backend/internal/i18n"
@@ -35,6 +36,53 @@ func (h *ActivityHandler) Register(r gin.IRouter) {
 		g.GET("", h.list)
 		g.GET("/stats", h.stats)
 	}
+
+	// Faollikni tuzatish — faqat admin (§17.3 #28).
+	admin := r.Group("/admin")
+	admin.Use(middleware.Auth(h.jwt), middleware.RequireRole(string(domain.RoleAdmin)))
+	{
+		admin.DELETE("/users/:id/activities", h.deleteRange)
+	}
+}
+
+// deleteRange — foydalanuvchining oraliqdagi faolligini o'chiradi.
+//
+//	DELETE /admin/users/:id/activities?from=YYYY-MM-DD&to=YYYY-MM-DD
+//
+// Xato yoki soxta yozuvni tuzatish uchun: upsert GREATEST bilan ishlagani
+// sababli katta qiymat qayta sinxron bilan tuzalmaydi.
+func (h *ActivityHandler) deleteRange(c *gin.Context) {
+	loc := middleware.GetLocale(c)
+
+	adminID, err := middleware.GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, dto.ErrResponse(i18n.T(loc, i18n.MsgUnauthorized)))
+		return
+	}
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrResponse(i18n.T(loc, i18n.MsgValidationFailed)))
+		return
+	}
+
+	n, err := h.svc.DeleteRange(c.Request.Context(), userID, c.Query("from"), c.Query("to"))
+	if err != nil {
+		h.respondErr(c, loc, err, "delete activity range")
+		return
+	}
+
+	// Audit (§17.3 #50): ma'lumot o'chirish — kim, kimga, qaysi oraliq.
+	if h.log != nil {
+		h.log.Info("admin faollikni o'chirdi",
+			zap.String("admin_id", adminID.String()),
+			zap.String("user_id", userID.String()),
+			zap.String("from", c.Query("from")),
+			zap.String("to", c.Query("to")),
+			zap.Int64("rows", n),
+		)
+	}
+
+	c.JSON(http.StatusOK, dto.OK(gin.H{"deleted": n}))
 }
 
 // record — kunlik faollikni yozadi/yangilaydi.

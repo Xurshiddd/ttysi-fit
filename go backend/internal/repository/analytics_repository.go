@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/ttysi-fit/backend/internal/domain"
 	"gorm.io/gorm"
 )
@@ -151,13 +153,29 @@ func (r *analyticsRepository) ByFaculty(ctx context.Context, f domain.AnalyticsF
 	return rows, nil
 }
 
-// StreamUserActivity — eksport qatorlarini birma-bir beradi (xotirada
-// butun hisobot yig'ilmaydi).
+// exportChunk — bitta so'rovda o'qiladigan foydalanuvchi soni.
+//
+// Nima uchun bo'laklab: butun jadval bo'ylab bitta `GROUP BY` so'rovi
+// DB ulanishini eksport tugaguncha ushlab turadi. Pool 25 ta ulanishdan
+// iborat (§13.1), ya'ni bir necha parallel eksport butun ilovani
+// to'xtatib qo'yishi mumkin edi. Bo'lak tugagach ulanish bo'shaydi.
+const exportChunk = 500
+
+// StreamUserActivity — eksport qatorlarini birma-bir beradi.
+//
+// KEYSET paginatsiya (`u.id > ?`) ishlatiladi, LIMIT/OFFSET emas:
+// OFFSET har bo'lakda oldingi qatorlarni qaytadan sanaydi va agregat
+// so'rovda bu O(n²) ga aylanardi (§14.2).
+//
+// Saralash `u.id` bo'yicha — qadam bo'yicha emas. Agregat ustun bo'yicha
+// keyset qilib bo'lmaydi (qiymat noyob emas), Excel esa ustunni bir
+// bosishda saralaydi.
 func (r *analyticsRepository) StreamUserActivity(ctx context.Context, f domain.AnalyticsFilter, fn func(domain.UserActivityRow) error) error {
 	where, args := scope(f)
 
 	q := fmt.Sprintf(`
-		SELECT u.full_name,
+		SELECT u.id,
+		       u.full_name,
 		       u.email,
 		       u.role,
 		       COALESCE(fa.name, '')                     AS faculty,
@@ -174,36 +192,56 @@ func (r *analyticsRepository) StreamUserActivity(ctx context.Context, f domain.A
 			ON a.user_id = u.id
 			AND a.deleted_at IS NULL
 			AND a.activity_date BETWEEN ? AND ?
-		WHERE %s
+		WHERE %s AND u.id > ?
 		GROUP BY u.id, u.full_name, u.email, u.role, fa.name, de.name, g.name
-		ORDER BY total_steps DESC, u.full_name
+		ORDER BY u.id
+		LIMIT ?
 	`, where)
 
-	all := []any{f.From, f.To}
-	all = append(all, args...)
+	// uuid.Nil — barcha UUID lardan kichik, ya'ni birinchi bo'lak boshi.
+	last := uuid.Nil
 
-	rows, err := r.db.WithContext(ctx).Raw(q, all...).Rows()
-	if err != nil {
-		return fmt.Errorf("analytics: export: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		// Context bekor qilingan bo'lsa (mijoz uzildi) — yozishni to'xtatamiz.
+	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		var row domain.UserActivityRow
-		if err := rows.Scan(
-			&row.FullName, &row.Email, &row.Role,
-			&row.Faculty, &row.Department, &row.GroupName,
-			&row.TotalSteps, &row.DistanceKm, &row.ActiveDays,
-		); err != nil {
-			return fmt.Errorf("analytics: export: scan: %w", err)
+
+		all := []any{f.From, f.To}
+		all = append(all, args...)
+		all = append(all, last, exportChunk)
+
+		rows, err := r.db.WithContext(ctx).Raw(q, all...).Rows()
+		if err != nil {
+			return fmt.Errorf("analytics: export: %w", err)
 		}
-		if err := fn(row); err != nil {
-			return err
+
+		n := 0
+		for rows.Next() {
+			var row domain.UserActivityRow
+			if err := rows.Scan(
+				&row.ID, &row.FullName, &row.Email, &row.Role,
+				&row.Faculty, &row.Department, &row.GroupName,
+				&row.TotalSteps, &row.DistanceKm, &row.ActiveDays,
+			); err != nil {
+				rows.Close()
+				return fmt.Errorf("analytics: export: scan: %w", err)
+			}
+			if err := fn(row); err != nil {
+				rows.Close()
+				return err
+			}
+			last = row.ID
+			n++
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("analytics: export: %w", err)
+		}
+		rows.Close() // ulanishni keyingi bo'lakdan OLDIN bo'shatamiz
+
+		// To'liq bo'lmagan bo'lak — oxiriga yetdik.
+		if n < exportChunk {
+			return nil
 		}
 	}
-	return rows.Err()
 }

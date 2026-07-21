@@ -11,6 +11,7 @@ final appPrefsProvider = Provider<AppPrefs>((ref) => AppPrefs());
 class AppPrefs {
   static const _themeKey = 'app_theme_mode';
   static const _localeKey = 'app_locale';
+  static const _healthAskedKey = 'health_permission_asked';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -44,6 +45,15 @@ class AppPrefs {
   }
 
   Future<void> setLocale(Locale locale) => _write(_localeKey, locale.languageCode);
+
+  /// healthAsked — qadam sanagich ruxsati haqida tushuntirish KO'RSATILGANMI.
+  ///
+  /// Ruxsat berilgan-berilmaganini bildirmaydi (uni tizimdan so'raymiz) —
+  /// faqat "biz bir marta so'radik" degani. Shusiz ilova har ochilganda
+  /// tushuntirish chiqib, foydalanuvchini bezovta qilardi.
+  Future<bool> healthAsked() async => await _read(_healthAskedKey) == '1';
+
+  Future<void> setHealthAsked() => _write(_healthAskedKey, '1');
 
   /// _read — ombor xatosi (masalan qurilma kaliti almashgan) sozlamani
   /// yo'qotadi, lekin ilovani yiqitmasligi kerak.

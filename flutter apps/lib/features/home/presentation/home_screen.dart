@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/i18n/app_localizations.dart';
+import '../../../core/prefs/app_prefs.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../activity/application/activity_providers.dart';
+import '../../activity/application/health_permission_controller.dart';
 import '../../activity/application/health_sync_controller.dart';
+import '../../activity/presentation/health_permission_prompt.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../news/application/news_providers.dart';
 import '../../news/presentation/news_section.dart';
@@ -30,8 +33,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Ilova ochilishi bilan (birinchi kadrdan keyin) jim sinxron.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _autoSync());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Ilova ochilishi bilan jim sinxron.
+      await _autoSync();
+      // Keyin — birinchi kirishda ruxsat tushuntirishi.
+      await _askHealthOnce();
+    });
+  }
+
+  /// _askHealthOnce — qadam sanagich ruxsatini BIR MARTA so'raydi.
+  ///
+  /// Bu bo'lmasa ilova jim buziladi: avtomatik sinxron ataylab ruxsat
+  /// so'ramaydi, ya'ni "Faollik → Sinxronlash" tugmasini hech qachon
+  /// bosmagan foydalanuvchining qadamlari umuman yuklanmasdi va u
+  /// reytingda doim 0 bo'lib turardi.
+  Future<void> _askHealthOnce() async {
+    if (!mounted) return;
+
+    final prefs = ref.read(appPrefsProvider);
+    if (await prefs.healthAsked()) return;
+
+    // Health Connect o'rnatilmagan yoki qurilma qo'llab-quvvatlamasa
+    // hasPermissions xato beradi. Bu ilova ochilishini buzmasligi kerak:
+    // qadam sanagich — foydali qo'shimcha, majburiy shart emas.
+    bool granted;
+    try {
+      granted = await ref.read(healthPermissionProvider.future);
+    } catch (_) {
+      return; // keyingi ochilishda yana urinamiz (bayroq qo'yilmaydi)
+    }
+
+    await prefs.setHealthAsked();
+    if (granted || !mounted) return;
+
+    await showHealthPermissionSheet(context, ref);
   }
 
   @override
@@ -42,9 +77,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
     // Foydalanuvchi ilovaga qaytdi — telefon shu orada sanagan qadamlarni
     // olib kelamiz. Throttle (kAutoSyncInterval) syncIfStale ichida.
-    if (state == AppLifecycleState.resumed) _autoSync();
+    _autoSync();
+    // Tizim sozlamalaridan ruxsat berib qaytgan bo'lishi mumkin — holatni
+    // qayta o'qiymiz, aks holda eslatma kartasi noto'g'ri turaverardi.
+    ref.read(healthPermissionProvider.notifier).refresh();
   }
 
   /// _autoSync — jim sinxron: xato bo'lsa ham foydalanuvchini bezovta
@@ -134,6 +173,9 @@ class _HomeTab extends ConsumerWidget {
           Text('${s.t('home.hello')}, ${user?.fullName ?? ''} 👋',
               style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
+
+          // Ruxsat berilmagan bo'lsa eslatma. Berilgan bo'lsa o'zi yashirinadi.
+          const HealthPermissionCard(),
 
           // Bugungi qadam — hero karta
           GestureDetector(

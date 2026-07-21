@@ -49,4 +49,7 @@ type ActivityRepository interface {
 	// Stats — bugun/hafta/oy/jami yig'ma (bitta so'rovda).
 	// today — APP_TIMEZONE dagi bugungi sana (server soati emas).
 	Stats(ctx context.Context, userID uuid.UUID, today time.Time) (*ActivityStats, error)
+	// DeleteRange — [from, to] oralig'idagi yozuvlarni O'CHIRADI (admin).
+	// O'chirilgan qatorlar sonini qaytaradi.
+	DeleteRange(ctx context.Context, userID uuid.UUID, from, to time.Time) (int64, error)
 }

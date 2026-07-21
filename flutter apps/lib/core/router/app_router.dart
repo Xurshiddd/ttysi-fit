@@ -8,6 +8,7 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/news/presentation/news_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/reward/presentation/reward_shop_screen.dart';
 
 /// appRouterProvider — auth holatiga qarab yo'naltiruvchi router.
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -41,6 +42,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/achievements',
         builder: (context, state) => const AchievementsScreen(),
+      ),
+      // Do'kon — profildagi kartadan ochiladi (push).
+      GoRoute(
+        path: '/shop',
+        builder: (context, state) => const RewardShopScreen(),
       ),
       // Profil — Sozlamalar bo'limi ichidan ochiladi (push).
       GoRoute(

@@ -53,24 +53,27 @@ type FacultyStat struct {
 
 // Analytics — dashboard uchun to'liq to'plam (bitta so'rovda qaytadi).
 type Analytics struct {
-	From       string             `json:"from"`
-	To         string             `json:"to"`
-	Overview   AnalyticsOverview  `json:"overview"`
-	Timeseries []AnalyticsPoint   `json:"timeseries"`
-	Faculties  []FacultyStat      `json:"faculties"`
+	From       string            `json:"from"`
+	To         string            `json:"to"`
+	Overview   AnalyticsOverview `json:"overview"`
+	Timeseries []AnalyticsPoint  `json:"timeseries"`
+	Faculties  []FacultyStat     `json:"faculties"`
 }
 
 // UserActivityRow — eksport (CSV) uchun bitta foydalanuvchi qatori.
 type UserActivityRow struct {
-	FullName    string
-	Email       string
-	Role        string
-	Faculty     string
-	Department  string
-	GroupName   string
-	TotalSteps  int64
-	DistanceKm  float64
-	ActiveDays  int64
+	// ID — CSV ga chiqmaydi; keyset paginatsiya kaliti sifatida kerak
+	// (repository bo'laklab o'qiydi).
+	ID         uuid.UUID
+	FullName   string
+	Email      string
+	Role       string
+	Faculty    string
+	Department string
+	GroupName  string
+	TotalSteps int64
+	DistanceKm float64
+	ActiveDays int64
 }
 
 // AnalyticsRepository — analitika o'qish portlari.

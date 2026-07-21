@@ -14,6 +14,8 @@ const mainNav = computed(() => [
   { to: '/trainings', label: t('nav.trainings'), icon: 'cap' },
   { to: '/achievements', label: t('nav.achievements'), icon: 'trophy' },
   { to: '/fit-coins', label: t('nav.fitCoins'), icon: 'database' },
+  { to: '/rewards', label: t('nav.rewards'), icon: 'briefcase' },
+  { to: '/redemptions', label: t('nav.redemptions'), icon: 'grid' },
   { to: '/reports', label: t('nav.reports'), icon: 'grid' },
   { to: '/hemis', label: t('nav.hemis'), icon: 'sync' }
 ])

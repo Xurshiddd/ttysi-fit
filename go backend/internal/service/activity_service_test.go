@@ -17,6 +17,9 @@ import (
 type fakeActivityRepo struct {
 	upsertCalls int
 	manyCalls   int
+	deleteCalls int
+	deletedFrom time.Time
+	deletedTo   time.Time
 	lastRows    []domain.Activity
 	err         error
 }
@@ -39,6 +42,12 @@ func (f *fakeActivityRepo) ListByUser(context.Context, uuid.UUID, time.Time, tim
 
 func (f *fakeActivityRepo) Stats(context.Context, uuid.UUID, time.Time) (*domain.ActivityStats, error) {
 	return &domain.ActivityStats{}, nil
+}
+
+func (f *fakeActivityRepo) DeleteRange(_ context.Context, _ uuid.UUID, from, to time.Time) (int64, error) {
+	f.deletedFrom, f.deletedTo = from, to
+	f.deleteCalls++
+	return 3, f.err
 }
 
 func newTestService(repo domain.ActivityRepository, loc *time.Location) *ActivityService {
@@ -173,5 +182,52 @@ func TestActivityService_RecordBatchLimits(t *testing.T) {
 	too := make([]dto.RecordActivityRequest, maxBatchDays+1)
 	if _, err := svc.RecordBatch(context.Background(), uuid.New(), too); !errors.Is(err, domain.ErrBatchTooLarge) {
 		t.Errorf("ErrBatchTooLarge kutilgandi, olingan: %v", err)
+	}
+}
+
+// Admin faollikni tuzatishi — GREATEST tufayli xato katta qiymatni qayta
+// sinxron TUZATMAYDI, shuning uchun o'chirishdan boshqa yo'l yo'q.
+func TestActivityService_DeleteRange(t *testing.T) {
+	tz := time.FixedZone("TEST", 5*3600)
+	repo := &fakeActivityRepo{}
+	svc := newTestService(repo, tz)
+
+	n, err := svc.DeleteRange(context.Background(), uuid.New(), "2026-07-19", "2026-07-21")
+	if err != nil {
+		t.Fatalf("DeleteRange: %v", err)
+	}
+	if n != 3 {
+		t.Errorf("3 qator kutilgandi, olingan %d", n)
+	}
+	// Sana MAHALLIY mintaqada o'qilishi kerak (UTC ga surilmasin).
+	if got := repo.deletedFrom.Format("2006-01-02"); got != "2026-07-19" {
+		t.Errorf("from surildi: %s", got)
+	}
+	if got := repo.deletedTo.Format("2006-01-02"); got != "2026-07-21" {
+		t.Errorf("to surildi: %s", got)
+	}
+}
+
+func TestActivityService_DeleteRangeValidation(t *testing.T) {
+	tz := time.FixedZone("TEST", 5*3600)
+	repo := &fakeActivityRepo{}
+	svc := newTestService(repo, tz)
+
+	cases := []struct{ name, from, to string }{
+		{"buzuq from", "axlat", "2026-07-21"},
+		{"buzuq to", "2026-07-19", "axlat"},
+		{"teskari oraliq", "2026-07-21", "2026-07-19"},
+		// Xato bosilgan tugma butun yillik tarixni o'chirmasin.
+		{"juda uzun oraliq", "2020-01-01", "2026-07-21"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := svc.DeleteRange(context.Background(), uuid.New(), c.from, c.to); !errors.Is(err, domain.ErrValidation) {
+				t.Errorf("ErrValidation kutilgandi, olingan: %v", err)
+			}
+		})
+	}
+	if repo.deleteCalls != 0 {
+		t.Errorf("rad etilgan so'rov DB ga borib qolibdi (%d)", repo.deleteCalls)
 	}
 }

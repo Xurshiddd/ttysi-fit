@@ -109,7 +109,7 @@ type employeeItem struct {
 	ImageFull        string         `json:"image_full"`
 	Gender           *typeRef       `json:"gender"`
 	BirthDate        int64          `json:"birth_date"`
-	Specialty        string         `json:"specialty"` // xodimda matn (talabada obyekt)
+	Specialty        string         `json:"specialty"`  // xodimda matn (talabada obyekt)
 	Department       *departmentRef `json:"department"` // = Kafedra
 	StaffPosition    *typeRef       `json:"staffPosition"`
 	EmploymentForm   *typeRef       `json:"employmentForm"` // "11" = Asosiy ish joy
@@ -190,6 +190,7 @@ func unixToTime(sec int64) *time.Time {
 // HEMIS ikki maydon qaytaradi:
 //   - image      → kichik crop/thumbnail (/static/crop/.../320__90_*.jpg) — avatar uchun MOS
 //   - image_full → to'liq original (/static/uploads/pi/...) — og'irroq, bizga kerak emas
+//
 // Avatar sifatida crop afzal; bo'sh bo'lsa full'ga, u ham bo'sh bo'lsa "" ga tushadi.
 // "" qaytsa, frontend default profil rasmni ko'rsatadi (UserAvatar komponenti).
 func avatar(crop, full string) string {

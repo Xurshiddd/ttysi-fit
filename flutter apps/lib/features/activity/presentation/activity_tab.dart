@@ -6,10 +6,14 @@ import '../../../core/theme/app_colors.dart';
 import '../application/activity_providers.dart';
 import '../application/health_sync_controller.dart';
 import '../data/activity_models.dart';
-import '../data/activity_repository.dart';
 
-/// ActivityTab — faollik statistikasi + qo'lda kiritish (test/manual source).
-/// Keyinchalik pedometer (HealthKit/Google Fit) shu repository'ga ulanadi.
+/// ActivityTab — faollik statistikasi.
+///
+/// QO'LDA KIRITISH OLIB TASHLANGAN. U pedometer tayyor bo'lgunga qadar
+/// vaqtinchalik sinov vositasi edi, endi esa reyting uchun ochiq teshik
+/// bo'lib qolgandi: istalgan foydalanuvchi o'ziga xohlagan qadamni yozib
+/// qo'ya olardi, upsert GREATEST bilan ishlagani uchun esa uni qaytarib
+/// bo'lmasdi. Qadam faqat Health Connect / HealthKit dan keladi.
 class ActivityTab extends ConsumerWidget {
   const ActivityTab({super.key});
 
@@ -73,124 +77,11 @@ class ActivityTab extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-            ),
-            icon: const Icon(Icons.add),
-            label: Text(s.t('activity.add')),
-            onPressed: () => _showEntrySheet(context, ref, s),
-          ),
         ],
       ),
     );
   }
 
-  /// Qo'lda kiritish bottom sheet (test uchun; keyin pedometer avtomatlashadi).
-  void _showEntrySheet(BuildContext context, WidgetRef ref, S s) {
-    final stepsCtrl = TextEditingController();
-    final calCtrl = TextEditingController();
-    final distCtrl = TextEditingController();
-    final minCtrl = TextEditingController();
-    var saving = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(s.t('activity.add'),
-                  style: Theme.of(ctx).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              TextField(
-                controller: stepsCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                    labelText: s.t('activity.steps'),
-                    prefixIcon: const Icon(Icons.directions_walk)),
-              ),
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                    child: TextField(
-                        controller: calCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                            labelText: s.t('activity.calories')))),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: TextField(
-                        controller: distCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                            labelText: '${s.t('activity.distance')} (m)'))),
-              ]),
-              const SizedBox(height: 12),
-              TextField(
-                controller: minCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                    labelText: s.t('activity.activeMin'),
-                    prefixIcon: const Icon(Icons.timer_outlined)),
-              ),
-              const SizedBox(height: 20),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    minimumSize: const Size.fromHeight(50)),
-                onPressed: saving
-                    ? null
-                    : () async {
-                        final steps = int.tryParse(stepsCtrl.text) ?? 0;
-                        if (steps <= 0) return;
-                        setState(() => saving = true);
-                        try {
-                          await ref
-                              .read(activityRepositoryProvider)
-                              .record(ActivityRecord(
-                                steps: steps,
-                                calories:
-                                    double.tryParse(calCtrl.text) ?? 0,
-                                distanceM:
-                                    double.tryParse(distCtrl.text) ?? 0,
-                                activeMin: int.tryParse(minCtrl.text) ?? 0,
-                              ));
-                          ref.invalidate(activityStatsProvider);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        } catch (_) {
-                          setState(() => saving = false);
-                          if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(s.t('common.error'))));
-                          }
-                        }
-                      },
-                child: saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : Text(s.t('common.save')),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// _HealthSyncCard — telefon (Health Connect / HealthKit) dan bugungi
@@ -202,7 +93,7 @@ class _HealthSyncCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = S.of(context);
     final syncState = ref.watch(healthSyncProvider);
-    final syncing = syncState.isLoading;
+    final syncing = syncState.running;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -222,7 +113,7 @@ class _HealthSyncCard extends ConsumerWidget {
                 Text(s.t('activity.healthTitle'),
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 Text(
-                  syncState.valueOrNull != null
+                  syncState.synced
                       ? s.t('activity.syncOk')
                       : s.t('activity.healthHint'),
                   style: const TextStyle(

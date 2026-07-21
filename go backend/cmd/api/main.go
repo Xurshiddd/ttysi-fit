@@ -63,9 +63,9 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS(cfg.App.AllowedOrigins, !cfg.IsProduction()))
-	r.Use(middleware.Locale()) // har bir so'rov tilini aniqlaydi
-	r.Use(middleware.SecurityHeaders(cfg.IsProduction()))    // HSTS/CSP/nosniff (§17.3 #42–44)
-	r.Use(middleware.BodyLimit(cfg.Security.MaxBodyBytes))   // DoS himoyasi (§17.3 #39)
+	r.Use(middleware.Locale())                             // har bir so'rov tilini aniqlaydi
+	r.Use(middleware.SecurityHeaders(cfg.IsProduction()))  // HSTS/CSP/nosniff (§17.3 #42–44)
+	r.Use(middleware.BodyLimit(cfg.Security.MaxBodyBytes)) // DoS himoyasi (§17.3 #39)
 
 	// Inbound rate limiting (§17.3 #15/#16/#40): umumiy + auth uchun qattiqroq.
 	// Local'da default o'chirilgan (§17.1), prod'da majburiy (config.validate).
@@ -102,6 +102,7 @@ func main() {
 	activityRepo := repository.NewActivityRepository(db)
 	ratingRepo := repository.NewRatingRepository(db)
 	analyticsRepo := repository.NewAnalyticsRepository(db)
+	rewardRepo := repository.NewRewardRepository(db)
 
 	hemisOAuthClient := hemis.NewOAuthClient(cfg.OAuth)
 	authService := service.NewAuthService(userRepo, jwtManager, rdb, hemisOAuthClient, cfg.OAuth.StateTTL, cfg.OAuth.CodeTTL)
@@ -133,6 +134,7 @@ func main() {
 	userService := service.NewUserService(userRepo)
 	ratingService := service.NewRatingService(ratingRepo, rdb, log)
 	analyticsService := service.NewAnalyticsService(analyticsRepo, cfg.App.Timezone)
+	rewardService := service.NewRewardService(rewardRepo)
 	challengeService := service.NewChallengeService(repository.NewChallengeRepository(db))
 	// fitCoinRepo alohida o'zgaruvchida: yutuq mukofoti ham shu ledger'ga yozadi.
 	fitCoinRepo := repository.NewFitCoinRepository(db)
@@ -166,6 +168,7 @@ func main() {
 	handler.NewActivityHandler(activityService, jwtManager, log).Register(v1)
 	handler.NewRatingHandler(ratingService, jwtManager, log, cfg.Media.PublicBaseURL).Register(v1)
 	handler.NewAnalyticsHandler(analyticsService, jwtManager, log).Register(v1)
+	handler.NewRewardHandler(rewardService, jwtManager, log, cfg.Media.PublicBaseURL).Register(v1)
 	handler.NewChallengeHandler(challengeService, jwtManager, log).Register(v1)
 	handler.NewFitCoinHandler(fitCoinService, jwtManager, log).Register(v1)
 	handler.NewCompetitionHandler(competitionService, jwtManager, log).Register(v1)

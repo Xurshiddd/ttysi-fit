@@ -101,25 +101,36 @@ func (h *AnalyticsHandler) exportUsers(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
 	defer cancel()
 
-	filename := fmt.Sprintf("ttysi_fit_hisobot_%s_%s.csv",
-		f.From.Format("2006-01-02"), f.To.Format("2006-01-02"))
+	// Yozuvchi BIRINCHI QATORDA yasaladi.
+	//
+	// Sabab: `c.Writer` ga birinchi yozishda HTTP sarlavhalari jo'natiladi va
+	// undan keyin status kodini o'zgartirib bo'lmaydi. Eksport band bo'lsa
+	// (ErrBusy) mijozga faqat sarlavhali bo'sh CSV emas, TO'G'RI xato
+	// qaytarishimiz kerak.
+	var w *report.Writer
+	start := func() error {
+		filename := fmt.Sprintf("ttysi_fit_hisobot_%s_%s.csv",
+			f.From.Format("2006-01-02"), f.To.Format("2006-01-02"))
 
-	c.Header("Content-Type", "text/csv; charset=utf-8")
-	// Fayl nomi kod ichida yasaladi (mijoz kiritmaydi) — header injection yo'q.
-	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
-	c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("Content-Type", "text/csv; charset=utf-8")
+		// Fayl nomi kod ichida yasaladi (mijoz kiritmaydi) — header injection yo'q.
+		c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+		c.Header("X-Content-Type-Options", "nosniff")
 
-	w := report.NewWriter(c.Writer)
-	if err := w.Write("F.I.O.", "Email", "Rol", "Fakultet", "Kafedra",
-		"Guruh", "Jami qadam", "Masofa (km)", "Faol kunlar"); err != nil {
-		logServerError(h.log, "export users: sarlavha", err)
-		return
+		w = report.NewWriter(c.Writer)
+		return w.Write("F.I.O.", "Email", "Rol", "Fakultet", "Kafedra",
+			"Guruh", "Jami qadam", "Masofa (km)", "Faol kunlar")
 	}
 
 	err = h.svc.StreamUserActivity(ctx, f, func(row domain.UserActivityRow) error {
+		if w == nil {
+			if err := start(); err != nil {
+				return err
+			}
+		}
 		return w.Write(
 			row.FullName,
 			row.Email,
@@ -132,14 +143,42 @@ func (h *AnalyticsHandler) exportUsers(c *gin.Context) {
 			strconv.FormatInt(row.ActiveDays, 10),
 		)
 	})
+
 	if err != nil {
-		// Sarlavhalar allaqachon yuborilgan — status kodini o'zgartirib
-		// bo'lmaydi. Xatoni loglaymiz, fayl chala qoladi.
+		if w == nil {
+			// Hali hech narsa yozilmagan — to'g'ri status berish mumkin.
+			h.respondExportErr(c, loc, err)
+			return
+		}
+		// Sarlavhalar ketib bo'lgan: fayl chala qoladi, faqat loglaymiz.
 		logServerError(h.log, "export users", err)
 		return
 	}
 
+	// Qator umuman bo'lmasa ham yaroqli CSV qaytaramiz (faqat sarlavha).
+	if w == nil {
+		if err := start(); err != nil {
+			logServerError(h.log, "export users: sarlavha", err)
+			return
+		}
+	}
 	if err := w.Flush(); err != nil {
 		logServerError(h.log, "export users: flush", err)
+	}
+}
+
+// respondExportErr — eksport boshlanmasdan yuzaga kelgan xato.
+func (h *AnalyticsHandler) respondExportErr(c *gin.Context, loc i18n.Locale, err error) {
+	switch {
+	case errors.Is(err, domain.ErrBusy):
+		// 503 + Retry-After: mijoz qachon qayta urinishni biladi.
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable,
+			dto.ErrResponse(i18n.T(loc, i18n.MsgBusy)))
+	case errors.Is(err, domain.ErrValidation):
+		c.JSON(http.StatusBadRequest, dto.ErrResponse(i18n.T(loc, i18n.MsgValidationFailed)))
+	default:
+		logServerError(h.log, "export users", err)
+		c.JSON(http.StatusInternalServerError, dto.ErrResponse(i18n.T(loc, i18n.MsgInternalError)))
 	}
 }

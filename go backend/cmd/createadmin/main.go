@@ -1,7 +1,8 @@
 // cmd/createadmin — admin foydalanuvchi yaratadi (yoki mavjudini admin qiladi).
 //
 // Foydalanish:
-//   go run cmd/createadmin/main.go <email> <parol> [to'liq_ism]
+//
+//	go run cmd/createadmin/main.go <email> <parol> [to'liq_ism]
 package main
 
 import (

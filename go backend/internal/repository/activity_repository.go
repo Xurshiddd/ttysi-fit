@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -74,6 +75,24 @@ func (r *activityRepository) ListByUser(ctx context.Context, userID uuid.UUID, f
 		Limit(limit).
 		Find(&rows).Error
 	return rows, err
+}
+
+// DeleteRange — oraliqdagi faollik yozuvlarini butunlay o'chiradi.
+//
+// Soft delete EMAS: upsert (user_id, activity_date) bo'yicha noyob indeksga
+// tayanadi, "o'chirilgan" qator qolsa telefon o'sha kunni qayta yubora
+// olmasdi va tuzatishning ma'nosi yo'qolardi.
+//
+// Ma'lumot yo'qolmaydi: telefon oxirgi 7 kunni backfill bilan qayta
+// yuboradi (kBackfillDays), ya'ni haqiqiy qiymatlar o'z-o'zidan tiklanadi.
+func (r *activityRepository) DeleteRange(ctx context.Context, userID uuid.UUID, from, to time.Time) (int64, error) {
+	res := r.db.WithContext(ctx).
+		Where("user_id = ? AND activity_date BETWEEN ? AND ?", userID, from, to).
+		Delete(&domain.Activity{})
+	if res.Error != nil {
+		return 0, fmt.Errorf("activity: delete range: %w", res.Error)
+	}
+	return res.RowsAffected, nil
 }
 
 // Stats — bugun/hafta/oy/jami yig'ma (bitta so'rov, GROUP BY'siz FILTER bilan).

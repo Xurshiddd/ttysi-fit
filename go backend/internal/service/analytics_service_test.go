@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,25 +13,48 @@ import (
 
 // fakeAnalyticsRepo — DB'siz sinov uchun. Har metod nechta marta va qaysi
 // filtr bilan chaqirilganini yozib boradi.
+//
+// MUTEX SHART: `Get` uchala so'rovni errgroup bilan PARALLEL bajaradi
+// (§11.2), ya'ni bu maydonlarga uchta goroutine bir vaqtda yozadi.
+// Himoyasiz `go test -race` ni yiqitardi.
 type fakeAnalyticsRepo struct {
+	mu        sync.Mutex
 	gotFilter domain.AnalyticsFilter
 	calls     int
 	err       error
+
+	// Eksport semaforini sinash uchun: repo "ishlab turgan" holatda
+	// ushlab turiladi.
+	streamStarted chan struct{}
+	streamRelease chan struct{}
+}
+
+func newStreamRepo() *fakeAnalyticsRepo {
+	return &fakeAnalyticsRepo{
+		streamStarted: make(chan struct{}, 8),
+		streamRelease: make(chan struct{}),
+	}
 }
 
 func (f *fakeAnalyticsRepo) Overview(_ context.Context, flt domain.AnalyticsFilter) (*domain.AnalyticsOverview, error) {
+	f.mu.Lock()
 	f.calls++
 	f.gotFilter = flt
+	f.mu.Unlock()
 	return &domain.AnalyticsOverview{TotalSteps: 100}, f.err
 }
 
 func (f *fakeAnalyticsRepo) Timeseries(_ context.Context, _ domain.AnalyticsFilter) ([]domain.AnalyticsPoint, error) {
+	f.mu.Lock()
 	f.calls++
+	f.mu.Unlock()
 	return []domain.AnalyticsPoint{{Date: "2026-07-21", Steps: 100}}, f.err
 }
 
 func (f *fakeAnalyticsRepo) ByFaculty(_ context.Context, _ domain.AnalyticsFilter) ([]domain.FacultyStat, error) {
+	f.mu.Lock()
 	f.calls++
+	f.mu.Unlock()
 	return []domain.FacultyStat{{Name: "Iqtisodiyot"}}, f.err
 }
 
@@ -38,6 +62,8 @@ func (f *fakeAnalyticsRepo) StreamUserActivity(_ context.Context, _ domain.Analy
 	if f.err != nil {
 		return f.err
 	}
+	f.streamStarted <- struct{}{} // "boshladim"
+	<-f.streamRelease             // testdan "tugat" signalini kutamiz
 	return fn(domain.UserActivityRow{FullName: "Test", TotalSteps: 10})
 }
 
@@ -128,7 +154,10 @@ func TestAnalyticsService_PassesFacultyFilter(t *testing.T) {
 	if _, err := svc.Get(context.Background(), f); err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if repo.gotFilter.FacultyID == nil || *repo.gotFilter.FacultyID != id {
+	repo.mu.Lock()
+	got := repo.gotFilter.FacultyID
+	repo.mu.Unlock()
+	if got == nil || *got != id {
 		t.Error("fakultet filtri repository'ga yetib bormadi")
 	}
 }
@@ -143,8 +172,11 @@ func TestAnalyticsService_GetRunsAllThree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if repo.calls != 3 {
-		t.Errorf("3 ta so'rov kutilgandi, olingan %d", repo.calls)
+	repo.mu.Lock()
+	calls := repo.calls
+	repo.mu.Unlock()
+	if calls != 3 {
+		t.Errorf("3 ta so'rov kutilgandi, olingan %d", calls)
 	}
 	if res.Overview.TotalSteps != 100 || len(res.Timeseries) != 1 || len(res.Faculties) != 1 {
 		t.Error("natija to'liq yig'ilmadi")
@@ -163,5 +195,45 @@ func TestAnalyticsService_GetFailsOnRepoError(t *testing.T) {
 	f, _ := svc.Filter("week", nil)
 	if _, err := svc.Get(context.Background(), f); err == nil {
 		t.Error("xato kutilgandi")
+	}
+}
+
+// Parallel eksport CHEKLANGAN bo'lishi kerak.
+//
+// NEGA: eksport uzoq davom etadi va DB ulanishini band qiladi. Pool 25 ta
+// ulanishdan iborat — cheklovsiz bir necha admin bir vaqtda eksport bossa
+// butun ilova javob bermay qolardi (§17.3 #39).
+func TestAnalyticsService_LimitsConcurrentExports(t *testing.T) {
+	repo := newStreamRepo()
+	svc := NewAnalyticsService(repo, time.UTC)
+	f, _ := svc.Filter("week", nil)
+
+	noop := func(domain.UserActivityRow) error { return nil }
+
+	// Barcha joyni band qilamiz va ushlab turamiz.
+	var wg sync.WaitGroup
+	for i := 0; i < maxConcurrentExports; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = svc.StreamUserActivity(context.Background(), f, noop)
+		}()
+		<-repo.streamStarted // shu goroutine haqiqatan slot olganiga ishonch
+	}
+
+	// Navbatdagisi KUTMASDAN ErrBusy qaytarishi kerak: admin "yuklanmoqda"
+	// holatida osilib qolmasin.
+	if err := svc.StreamUserActivity(context.Background(), f, noop); !errors.Is(err, domain.ErrBusy) {
+		close(repo.streamRelease)
+		t.Fatalf("ErrBusy kutilgandi, olingan: %v", err)
+	}
+
+	// Hammasini bir yo'la bo'shatamiz va tugashini kutamiz.
+	close(repo.streamRelease)
+	wg.Wait()
+
+	// Slot qaytarilgan bo'lishi kerak.
+	if err := svc.StreamUserActivity(context.Background(), f, noop); err != nil {
+		t.Errorf("eksport tugagach joy bo'shamadi: %v", err)
 	}
 }

@@ -2,11 +2,12 @@
 // Admin JWT shart emas — bootstrap uchun to'g'ridan-to'g'ri ishlatiladi.
 //
 // Foydalanish:
-//   go run cmd/sync/main.go            # hammasi (structures→groups→students→employees)
-//   go run cmd/sync/main.go structures
-//   go run cmd/sync/main.go groups
-//   go run cmd/sync/main.go students
-//   go run cmd/sync/main.go employees
+//
+//	go run cmd/sync/main.go            # hammasi (structures→groups→students→employees)
+//	go run cmd/sync/main.go structures
+//	go run cmd/sync/main.go groups
+//	go run cmd/sync/main.go students
+//	go run cmd/sync/main.go employees
 package main
 
 import (
