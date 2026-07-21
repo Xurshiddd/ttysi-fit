@@ -21,6 +21,12 @@ dependencies:
   # Xavfsiz token saqlash
   flutter_secure_storage: ^9.2.2
 
+  # Qurilma nomi ("Samsung SM-S918B") — "Mening qurilmalarim" ro'yxati uchun.
+  # Qurilma ID si bu paketdan OLINMAYDI: u qayta o'rnatishda o'zgarishi va
+  # turli qurilmalarda takrorlanishi mumkin. ID o'zimiz yasab, xavfsiz
+  # omborda saqlaymiz (device_identity.dart).
+  device_info_plus: ^12.4.0
+
   # HEMIS OAuth (Custom Tab + deep link callback)
   flutter_web_auth_2: ^4.1.0
 

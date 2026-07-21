@@ -96,6 +96,10 @@ func main() {
 		cfg.JWT.AccessSecret, cfg.JWT.RefreshSecret,
 		cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL,
 	)
+	// Bekor qilingan qurilmani DARROV chiqaradi (mijoz X-Device-Id yuborsa).
+	// jwtManager dan keyin turishi shart, route'lardan oldin.
+	r.Use(middleware.DeviceSession(jwtManager, rdb, log))
+
 	userRepo := repository.NewUserRepository(db)
 	structureRepo := repository.NewStructureRepository(db)
 	groupRepo := repository.NewGroupRepository(db)
@@ -103,9 +107,14 @@ func main() {
 	ratingRepo := repository.NewRatingRepository(db)
 	analyticsRepo := repository.NewAnalyticsRepository(db)
 	rewardRepo := repository.NewRewardRepository(db)
+	notificationRepo := repository.NewNotificationRepository(db)
+	sessionRepo := repository.NewSessionRepository(db)
 
 	hemisOAuthClient := hemis.NewOAuthClient(cfg.OAuth)
 	authService := service.NewAuthService(userRepo, jwtManager, rdb, hemisOAuthClient, cfg.OAuth.StateTTL, cfg.OAuth.CodeTTL)
+	// Qurilma sessiyalari: bir hisob — bir qurilma (ikkinchisida
+	// kirilganda foydalanuvchidan rozilik so'raladi).
+	authService.SetSessions(sessionRepo)
 	hemisClient := hemis.NewClient(cfg.HEMIS)
 	structureService := service.NewStructureService(structureRepo, hemisClient, cfg.HEMIS.FacultyTypeCode, cfg.HEMIS.DepartmentTypeCode)
 
@@ -134,11 +143,14 @@ func main() {
 	userService := service.NewUserService(userRepo)
 	ratingService := service.NewRatingService(ratingRepo, rdb, log)
 	analyticsService := service.NewAnalyticsService(analyticsRepo, cfg.App.Timezone)
-	rewardService := service.NewRewardService(rewardRepo)
+	// notificationService boshqa servislardan OLDIN: do'kon va yutuq
+	// unga xabar yozadi (Notifier interfeysi orqali).
+	notificationService := service.NewNotificationService(notificationRepo, log)
+	rewardService := service.NewRewardService(rewardRepo, notificationService)
 	challengeService := service.NewChallengeService(repository.NewChallengeRepository(db))
 	// fitCoinRepo alohida o'zgaruvchida: yutuq mukofoti ham shu ledger'ga yozadi.
 	fitCoinRepo := repository.NewFitCoinRepository(db)
-	fitCoinService := service.NewFitCoinService(fitCoinRepo)
+	fitCoinService := service.NewFitCoinService(fitCoinRepo, notificationService)
 	competitionService := service.NewCompetitionService(repository.NewCompetitionRepository(db))
 	newsService := service.NewNewsService(repository.NewNewsRepository(db))
 	trainingService := service.NewTrainingService(repository.NewTrainingRepository(db))
@@ -156,7 +168,7 @@ func main() {
 		log.Fatal("sertifikat aktivlari", zap.Error(err))
 	}
 
-	achievementService := service.NewAchievementService(repository.NewAchievementRepository(db), fitCoinRepo, certSigning)
+	achievementService := service.NewAchievementService(repository.NewAchievementRepository(db), fitCoinRepo, certSigning, notificationService)
 	activityService := service.NewActivityService(activityRepo, achievementService, cfg.App.Timezone, log)
 
 	v1 := r.Group("/api/v1")
@@ -169,6 +181,7 @@ func main() {
 	handler.NewRatingHandler(ratingService, jwtManager, log, cfg.Media.PublicBaseURL).Register(v1)
 	handler.NewAnalyticsHandler(analyticsService, jwtManager, log).Register(v1)
 	handler.NewRewardHandler(rewardService, jwtManager, log, cfg.Media.PublicBaseURL).Register(v1)
+	handler.NewNotificationHandler(notificationService, jwtManager, log).Register(v1)
 	handler.NewChallengeHandler(challengeService, jwtManager, log).Register(v1)
 	handler.NewFitCoinHandler(fitCoinService, jwtManager, log).Register(v1)
 	handler.NewCompetitionHandler(competitionService, jwtManager, log).Register(v1)

@@ -15,6 +15,8 @@ const (
 	MsgValidationFailed = "common.validation_failed"
 	MsgInternalError    = "common.internal_error"
 	MsgBusy             = "common.busy"
+	MsgDeviceConflict   = "auth.device_conflict"
+	MsgSessionRevoked   = "auth.session_revoked"
 	MsgTooManyRequests  = "common.too_many_requests"
 	MsgRequestTooLarge  = "common.request_too_large"
 
@@ -96,6 +98,16 @@ var catalog = map[string]map[Locale]string{
 		UZ: "Tizim hozir band — birozdan keyin urinib ko'ring",
 		RU: "Система занята — попробуйте чуть позже",
 		EN: "The system is busy — please try again shortly",
+	},
+	MsgDeviceConflict: {
+		UZ: "Bu hisob boshqa qurilmada ochiq",
+		RU: "Этот аккаунт открыт на другом устройстве",
+		EN: "This account is signed in on another device",
+	},
+	MsgSessionRevoked: {
+		UZ: "Siz boshqa qurilmada kirdingiz — bu qurilmadan chiqarildingiz",
+		RU: "Вы вошли на другом устройстве — сеанс здесь завершён",
+		EN: "You signed in on another device — this session was ended",
 	},
 	MsgTooManyRequests: {
 		UZ: "So'rovlar soni ko'payib ketdi, birozdan keyin urinib ko'ring",

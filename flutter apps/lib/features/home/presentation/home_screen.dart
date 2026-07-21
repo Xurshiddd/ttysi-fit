@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/i18n/app_localizations.dart';
 import '../../../core/prefs/app_prefs.dart';
@@ -11,6 +12,8 @@ import '../../activity/presentation/health_permission_prompt.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../news/application/news_providers.dart';
 import '../../news/presentation/news_section.dart';
+import '../../notification/application/notification_providers.dart';
+import '../../notification/presentation/notification_screen.dart';
 import '../../settings/presentation/settings_tab.dart';
 import 'activity_hub_tab.dart';
 import 'events_tab.dart';
@@ -84,6 +87,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // Tizim sozlamalaridan ruxsat berib qaytgan bo'lishi mumkin — holatni
     // qayta o'qiymiz, aks holda eslatma kartasi noto'g'ri turaverardi.
     ref.read(healthPermissionProvider.notifier).refresh();
+    // Fon'da yangi xabar kelgan bo'lishi mumkin.
+    ref.read(unreadCountProvider.notifier).refresh();
   }
 
   /// _autoSync — jim sinxron: xato bo'lsa ham foydalanuvchini bezovta
@@ -108,7 +113,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return Scaffold(
       // Chiqish tugmasi Profil tabiga ko'chdi — har bir tabda takrorlanmaydi.
-      appBar: AppBar(title: Text(titles[_index])),
+      appBar: AppBar(
+        title: Text(titles[_index]),
+        actions: [
+          NotificationBell(onTap: () => context.push('/notifications')),
+        ],
+      ),
       body: IndexedStack(
         index: _index,
         children: [

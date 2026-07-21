@@ -14,13 +14,15 @@ import (
 type AchievementService struct {
 	repo  domain.AchievementRepository
 	coins domain.FitCoinRepository
+	// notify — yangi yutuq haqida xabar. nil bo'lsa xabar yozilmaydi.
+	notify Notifier
 	// signing — muhr/imzo. Startupda bir marta yuklanadi (diskdan har
 	// so'rovda o'qish keraksiz).
 	signing certificate.Signing
 }
 
-func NewAchievementService(repo domain.AchievementRepository, coins domain.FitCoinRepository, signing certificate.Signing) *AchievementService {
-	return &AchievementService{repo: repo, coins: coins, signing: signing}
+func NewAchievementService(repo domain.AchievementRepository, coins domain.FitCoinRepository, signing certificate.Signing, notify Notifier) *AchievementService {
+	return &AchievementService{repo: repo, coins: coins, signing: signing, notify: notify}
 }
 
 // Types — admin panel dinamik formasi uchun tur ta'riflari (§16.2).
@@ -104,6 +106,21 @@ func (s *AchievementService) Evaluate(ctx context.Context, userID uuid.UUID) ([]
 			continue
 		}
 		s.grantReward(ctx, a, &granted[i])
+
+		// Yangi yutuq haqida xabar. ref_id — berilgan yutuq yozuvi,
+		// shuning uchun takroriy baholashda ikkinchi xabar chiqmaydi
+		// (Evaluate har faollik yozuvida ishlaydi).
+		if s.notify != nil {
+			ref := granted[i].ID
+			s.notify.Notify(ctx, domain.Notification{
+				UserID:  userID,
+				Type:    domain.NotifyAchievement,
+				Title:   "Yangi yutuq: " + a.Title,
+				Body:    a.Description,
+				RefType: domain.CoinRefAchievement,
+				RefID:   &ref,
+			})
+		}
 	}
 	return granted, nil
 }

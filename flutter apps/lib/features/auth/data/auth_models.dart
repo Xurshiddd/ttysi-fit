@@ -43,3 +43,33 @@ class AuthTokens {
         ),
       );
 }
+
+/// UserSession — "Mening qurilmalarim" ro'yxatidagi qator.
+class UserSession {
+  final String id;
+  final String deviceId;
+  final String deviceName;
+  final String platform;
+  final String ip;
+  final DateTime? lastSeenAt;
+
+  const UserSession({
+    required this.id,
+    required this.deviceId,
+    required this.deviceName,
+    required this.platform,
+    required this.ip,
+    required this.lastSeenAt,
+  });
+
+  factory UserSession.fromJson(Map<String, dynamic> j) => UserSession(
+        id: (j['id'] ?? '').toString(),
+        deviceId: (j['device_id'] ?? '').toString(),
+        deviceName: (j['device_name'] ?? '').toString(),
+        platform: (j['platform'] ?? '').toString(),
+        ip: (j['ip'] ?? '').toString(),
+        lastSeenAt: j['last_seen_at'] == null
+            ? null
+            : DateTime.tryParse(j['last_seen_at'].toString()),
+      );
+}

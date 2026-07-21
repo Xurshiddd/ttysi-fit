@@ -4,8 +4,10 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/ttysi-fit/backend/internal/domain"
 	"github.com/ttysi-fit/backend/internal/dto"
 	"github.com/ttysi-fit/backend/internal/i18n"
@@ -37,6 +39,10 @@ func (h *AuthHandler) Register(r gin.IRouter, mw ...gin.HandlerFunc) {
 		g.POST("/login", h.login)
 		g.POST("/refresh", h.refresh)
 		g.POST("/logout", middleware.Auth(h.jwt), h.logout)
+
+		// "Mening qurilmalarim" — faqat o'z sessiyalari (§17.3 #26).
+		g.GET("/sessions", middleware.Auth(h.jwt), h.sessions)
+		g.DELETE("/sessions/:id", middleware.Auth(h.jwt), h.revokeSession)
 
 		// HEMIS OAuth — :provider = "student" | "employee"
 		g.GET("/hemis/:provider/login", h.hemisLogin)
@@ -109,8 +115,19 @@ func (h *AuthHandler) hemisExchange(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.auth.ExchangeTokens(c.Request.Context(), req.Code)
+	if req.Device != nil {
+		req.Device.IP = c.ClientIP()
+		req.Device.UserAgent = c.Request.UserAgent()
+	}
+
+	tokens, err := h.auth.ExchangeTokens(c.Request.Context(), req.Code, req.Device, req.ForceDevice)
 	if err != nil {
+		if errors.Is(err, domain.ErrDeviceConflict) {
+			// Kod hali yaroqli: foydalanuvchi rozilik berib o'shani
+			// force_device bilan qayta yuboradi.
+			h.respondExchangeConflict(c, loc, req)
+			return
+		}
 		h.handleError(c, "hemisExchange", err)
 		return
 	}
@@ -143,12 +160,110 @@ func (h *AuthHandler) login(c *gin.Context) {
 		return
 	}
 
+	// IP va User-Agent mijozdan EMAS, so'rovdan olinadi (§17.3 #13):
+	// aks holda foydalanuvchi ularni istalgancha yozib qo'yardi.
+	if req.Device != nil {
+		req.Device.IP = c.ClientIP()
+		req.Device.UserAgent = c.Request.UserAgent()
+	}
+
 	res, err := h.auth.Login(c.Request.Context(), req)
 	if err != nil {
+		// Qurilma konflikti — mijozga QAYSI qurilma bandligini aytamiz,
+		// aks holda foydalanuvchi nima uchun kira olmayotganini tushunmaydi.
+		if errors.Is(err, domain.ErrDeviceConflict) {
+			h.respondDeviceConflict(c, loc, req)
+			return
+		}
 		h.handleError(c, "login", err)
 		return
 	}
 	c.JSON(http.StatusOK, dto.OK(res))
+}
+
+// respondDeviceConflict — 409 + band qurilma tafsiloti.
+//
+// Mijoz shu javobni ko'rsatib rozilik so'raydi va rozi bo'lsa
+// `force_device: true` bilan qayta yuboradi.
+func (h *AuthHandler) respondDeviceConflict(c *gin.Context, loc i18n.Locale, req dto.LoginRequest) {
+	out := dto.DeviceConflictResponse{Error: i18n.T(loc, i18n.MsgDeviceConflict)}
+
+	deviceID := ""
+	if req.Device != nil {
+		deviceID = req.Device.DeviceID
+	}
+	if other := h.auth.ConflictingDevice(c.Request.Context(), req.Email, deviceID); other != nil {
+		out.Device.Name = other.DeviceName
+		out.Device.Platform = other.Platform
+		out.Device.LastSeenAt = other.LastSeenAt.Format(time.RFC3339)
+	}
+	c.JSON(http.StatusConflict, out)
+}
+
+// respondExchangeConflict — HEMIS oqimidagi qurilma konflikti.
+func (h *AuthHandler) respondExchangeConflict(c *gin.Context, loc i18n.Locale, req dto.HemisExchangeRequest) {
+	out := dto.DeviceConflictResponse{Error: i18n.T(loc, i18n.MsgDeviceConflict)}
+
+	// Kimning hisobi ekanini kod ichidagi tokendan bilamiz — mijoz
+	// bu paytda hali kirmagani uchun boshqa yo'l yo'q.
+	if uid, ok := h.auth.PendingUserID(c.Request.Context(), req.Code); ok {
+		deviceID := ""
+		if req.Device != nil {
+			deviceID = req.Device.DeviceID
+		}
+		if other := h.auth.ConflictingDeviceFor(c.Request.Context(), uid, deviceID); other != nil {
+			out.Device.Name = other.DeviceName
+			out.Device.Platform = other.Platform
+			out.Device.LastSeenAt = other.LastSeenAt.Format(time.RFC3339)
+		}
+	}
+	c.JSON(http.StatusConflict, out)
+}
+
+// sessions — foydalanuvchining faol qurilmalari ("Mening qurilmalarim").
+func (h *AuthHandler) sessions(c *gin.Context) {
+	loc := middleware.GetLocale(c)
+
+	uid, err := middleware.GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, dto.ErrResponse(i18n.T(loc, i18n.MsgUnauthorized)))
+		return
+	}
+
+	rows, err := h.auth.Sessions(c.Request.Context(), uid)
+	if err != nil {
+		logServerError(h.log, "sessions", err)
+		c.JSON(http.StatusInternalServerError, dto.ErrResponse(i18n.T(loc, i18n.MsgInternalError)))
+		return
+	}
+	c.JSON(http.StatusOK, dto.OK(rows))
+}
+
+// revokeSession — foydalanuvchi qurilmani o'chiradi.
+func (h *AuthHandler) revokeSession(c *gin.Context) {
+	loc := middleware.GetLocale(c)
+
+	uid, err := middleware.GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, dto.ErrResponse(i18n.T(loc, i18n.MsgUnauthorized)))
+		return
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrResponse(i18n.T(loc, i18n.MsgValidationFailed)))
+		return
+	}
+
+	if err := h.auth.RevokeSession(c.Request.Context(), uid, id); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, dto.ErrResponse(i18n.T(loc, i18n.MsgNotFound)))
+			return
+		}
+		logServerError(h.log, "revoke session", err)
+		c.JSON(http.StatusInternalServerError, dto.ErrResponse(i18n.T(loc, i18n.MsgInternalError)))
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *AuthHandler) refresh(c *gin.Context) {

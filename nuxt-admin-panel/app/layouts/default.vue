@@ -16,6 +16,7 @@ const mainNav = computed(() => [
   { to: '/fit-coins', label: t('nav.fitCoins'), icon: 'database' },
   { to: '/rewards', label: t('nav.rewards'), icon: 'briefcase' },
   { to: '/redemptions', label: t('nav.redemptions'), icon: 'grid' },
+  { to: '/announcements', label: t('nav.announcements'), icon: 'bell' },
   { to: '/reports', label: t('nav.reports'), icon: 'grid' },
   { to: '/hemis', label: t('nav.hemis'), icon: 'sync' }
 ])
@@ -187,12 +188,6 @@ const currentTitle = computed(() => {
             @click="toggle"
           >
             <Icon :name="isDark ? 'sun' : 'moon'" class="h-5 w-5" />
-          </button>
-
-          <!-- Notifications (dekorativ) -->
-          <button class="btn-ghost !p-2.5 relative hidden sm:inline-flex" :title="t('common.notifications')">
-            <Icon name="bell" class="h-5 w-5" />
-            <span class="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent-500 ring-2 ring-white dark:ring-slate-900" />
           </button>
 
           <!-- Language -->

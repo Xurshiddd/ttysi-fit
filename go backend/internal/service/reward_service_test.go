@@ -57,7 +57,7 @@ func validReward() *domain.Reward {
 // DB default'i ('{}') ishlamaydi. Bu haqiqiy 500 xatosi edi.
 func TestRewardService_NormalizesConfig(t *testing.T) {
 	repo := &fakeRewardRepo{}
-	svc := NewRewardService(repo)
+	svc := NewRewardService(repo, nil)
 
 	if err := svc.Create(context.Background(), validReward()); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -71,7 +71,7 @@ func TestRewardService_NormalizesConfig(t *testing.T) {
 }
 
 func TestRewardService_ValidationRules(t *testing.T) {
-	svc := NewRewardService(&fakeRewardRepo{})
+	svc := NewRewardService(&fakeRewardRepo{}, nil)
 
 	cases := []struct {
 		name   string
@@ -98,7 +98,7 @@ func TestRewardService_ValidationRules(t *testing.T) {
 // Teskari vaqt oynasi — sovg'a hech qachon ko'rinmaydi. Bu odatda admin
 // xatosi, jimgina qabul qilmaymiz.
 func TestRewardService_RejectsInvertedWindow(t *testing.T) {
-	svc := NewRewardService(&fakeRewardRepo{})
+	svc := NewRewardService(&fakeRewardRepo{}, nil)
 
 	r := validReward()
 	start := time.Now().AddDate(0, 0, 10)
@@ -114,7 +114,7 @@ func TestRewardService_RejectsInvertedWindow(t *testing.T) {
 // MyRedemptions filtrni MAJBURAN o'zinikiga qo'yishi kerak.
 func TestRewardService_MyRedemptionsForcesOwnership(t *testing.T) {
 	repo := &fakeRewardRepo{}
-	svc := NewRewardService(repo)
+	svc := NewRewardService(repo, nil)
 
 	me := uuid.New()
 	someoneElse := uuid.New()
@@ -131,7 +131,7 @@ func TestRewardService_MyRedemptionsForcesOwnership(t *testing.T) {
 }
 
 func TestRewardService_RejectsUnknownStatusFilter(t *testing.T) {
-	svc := NewRewardService(&fakeRewardRepo{})
+	svc := NewRewardService(&fakeRewardRepo{}, nil)
 
 	_, _, err := svc.ListRedemptions(context.Background(),
 		domain.RedemptionFilter{Status: "'; DROP TABLE rewards; --"})
@@ -141,7 +141,7 @@ func TestRewardService_RejectsUnknownStatusFilter(t *testing.T) {
 }
 
 func TestRewardService_RejectsUnknownCategoryFilter(t *testing.T) {
-	svc := NewRewardService(&fakeRewardRepo{})
+	svc := NewRewardService(&fakeRewardRepo{}, nil)
 
 	_, _, err := svc.List(context.Background(), domain.RewardFilter{Category: "yolgon"})
 	if !errors.Is(err, domain.ErrValidation) {

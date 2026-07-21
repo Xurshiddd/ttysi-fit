@@ -31,7 +31,7 @@ dasturlari) va institutdan muhr/imzo skanini olish.
 - ✅ Til va mavzu (tizim/yorug'/qorong'i) qurilmada saqlanadi va ilova
   ochilishida darrov qo'llanadi
 
-### 1. Foydalanuvchi profili — 🟢 ~95%
+### 1. Foydalanuvchi profili — 🟢 ~98%
 - ✅ Talaba/o'qituvchi sifatida kirish (HEMIS OAuth — student + employee)
 - ✅ Fakultet, kafedra, kurs, guruh ma'lumotlari (HEMIS sync orqali)
 - ✅ Profil ekrani, sport faolligi tarixi
@@ -39,6 +39,10 @@ dasturlari) va institutdan muhr/imzo skanini olish.
   (qozonilgan + jarayondagi progress), sertifikat PDF yuklab olish
 - ✅ **Sertifikat imzo bloki**: muhr + imzo skani + imzolovchi F.I.O./lavozim
   `.env` orqali (`CERT_*`); fayl yo'q bo'lsa hozirgidek bo'sh chiziq qoladi
+- ✅ **Qurilmalarim va kirishlar** (17-migratsiya `user_sessions`): bir hisob —
+  bir qurilma. Ikkinchi qurilmada kirilganda rozilik so'raladi; rozilik
+  bermasa kira olmaydi. Eski qurilma `X-Device-Id` orqali DARROV chiqariladi
+  (access token muddatini kutmasdan)
 
 ### 2. Kunlik jismoniy faollik monitoringi — 🟢 ~92%
 - ✅ Qadam/kaloriya/masofa/faol daqiqa yozish (`POST /activities`)
@@ -91,9 +95,17 @@ dasturlari) va institutdan muhr/imzo skanini olish.
 - ✅ Qo'shilish, progress hisoblash, mukofot olish
 - 🟡 Fakultet/guruhlararo bellashuv turi hali registrda yo'q
 
-### 8. Axborot va yangiliklar — 🟢 ~90%
+### 8. Axborot va yangiliklar — 🟢 ~95%
 - ✅ Yangilik CRUD, draft/e'lon, pin, ko'rishlar hisobi
 - ✅ Mobil bosh sahifada yangiliklar + batafsil ekran, admin `news.vue`
+- ✅ **Bildirishnomalar (ilova ichida)** — 16-migratsiya: sovg'a topshirilgani/
+  bekor qilingani va yangi yutuq avtomatik xabar qiladi; admin `announcements.vue`
+  orqali e'lon yuboradi (fakultet/guruh/rol bo'yicha yoki hammaga)
+- ✅ Mobil: AppBar da qo'ng'iroq + o'qilmaganlar nishoni, `/notifications` ekrani
+- ❌ **Push (FCM)** — telefon ekraniga chiqadigan xabar hali yo'q
+  (Firebase loyihasi + iOS uchun APNs kaliti kerak — tashkiliy qadam)
+- ✅ Galaxy S23 Ultra da **qurilmada tasdiqlandi**: qo'ng'iroq nishoni,
+  e'lon va sovg'a xabarlari, turlar bo'yicha ikonkalar
 
 ### 9. Analitika va hisobotlar — 🟢 ~85%
 - ✅ Admin dashboard: foydalanuvchi/fakultet/kafedra/guruh sonlari
@@ -125,8 +137,8 @@ dasturlari) va institutdan muhr/imzo skanini olish.
 - **Autentifikatsiya:** JWT access + refresh (rotatsiya), avtomatik token yangilash
 - **HEMIS OAuth:** talaba + xodim, bir martalik code orqali xavfsiz mobil oqim
 - **HEMIS sync:** strukturalar, guruhlar, talabalar, xodimlar (rate-limit, dedup)
-- **15 migratsiya:** users, faculties, structures, groups, activities, challenges,
-  fit_coins, competitions, news, trainings, achievements, rewards
+- **17 migratsiya:** users, faculties, structures, groups, activities, challenges,
+  fit_coins, competitions, news, trainings, achievements, rewards, notifications, user_sessions
 - **Dinamik kontent (§16):** chellenj, musobaqa va yutuq turlari registr orqali —
   yangi tur qo'shish migration ham, frontend o'zgarishi ham talab qilmaydi
 - **Testlar:** Go (domain + service + handler + pkg), Flutter 69 test, Playwright 42 e2e

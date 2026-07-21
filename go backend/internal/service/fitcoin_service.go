@@ -11,10 +11,12 @@ import (
 // FitCoinService — FIT Coin use-case qatlami.
 type FitCoinService struct {
 	repo domain.FitCoinRepository
+	// notify — coin harakati haqida xabar. nil bo'lsa xabar yozilmaydi.
+	notify Notifier
 }
 
-func NewFitCoinService(repo domain.FitCoinRepository) *FitCoinService {
-	return &FitCoinService{repo: repo}
+func NewFitCoinService(repo domain.FitCoinRepository, notify Notifier) *FitCoinService {
+	return &FitCoinService{repo: repo, notify: notify}
 }
 
 func (s *FitCoinService) Balance(ctx context.Context, userID uuid.UUID) (*domain.CoinBalance, error) {
@@ -28,7 +30,25 @@ func (s *FitCoinService) History(ctx context.Context, userID uuid.UUID, f domain
 // ClaimChallengeReward — foydalanuvchi yakunlangan chellenj mukofotini oladi.
 // Idempotent: ikkinchi marta ErrAlreadyExists.
 func (s *FitCoinService) ClaimChallengeReward(ctx context.Context, userID, challengeID uuid.UUID) (*domain.FitCoin, error) {
-	return s.repo.GrantChallengeReward(ctx, userID, challengeID)
+	coin, err := s.repo.GrantChallengeReward(ctx, userID, challengeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Mukofot tushgani haqida xabar. ref_id — ledger yozuvi, shuning uchun
+	// takroriy so'rovda ikkinchi xabar chiqmaydi.
+	if s.notify != nil && coin != nil {
+		ref := coin.ID
+		s.notify.Notify(ctx, domain.Notification{
+			UserID:  userID,
+			Type:    domain.NotifyChallenge,
+			Title:   "Chellenj mukofoti",
+			Body:    fmt.Sprintf("%s — %d FIT Coin hisobingizga tushdi", coin.Note, coin.Amount),
+			RefType: domain.CoinRefChallenge,
+			RefID:   &ref,
+		})
+	}
+	return coin, nil
 }
 
 // AdminGrant — admin qo'lda coin beradi yoki oladi (manfiy amount).

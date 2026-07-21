@@ -6,6 +6,7 @@ import '../../../core/config/app_config.dart';
 import '../../../core/i18n/app_localizations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../application/auth_controller.dart';
+import '../data/auth_repository.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -44,17 +45,65 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _loginHemis(String provider) async {
-    final ok =
-        await ref.read(authControllerProvider.notifier).loginWithHemis(provider);
-    _onResult(ok);
+    await _withDeviceConflict(
+      (force) => ref
+          .read(authControllerProvider.notifier)
+          .loginWithHemis(provider, force: force),
+    );
   }
 
   Future<void> _loginDev() async {
     FocusScope.of(context).unfocus();
-    final ok = await ref
-        .read(authControllerProvider.notifier)
-        .login(_email.text.trim(), _password.text);
-    _onResult(ok);
+    await _withDeviceConflict(
+      (force) => ref
+          .read(authControllerProvider.notifier)
+          .login(_email.text.trim(), _password.text, force: force),
+    );
+  }
+
+  /// _withDeviceConflict — login urinishini bajaradi va hisob boshqa
+  /// qurilmada ochiq bo'lsa foydalanuvchidan rozilik so'raydi.
+  ///
+  /// Rozilik bermasa — kirmaydi. Bu ATAYLAB: bitta hisobdan ikki kishi
+  /// foydalansa reyting buziladi (qadamlar bir joyga tushadi).
+  Future<void> _withDeviceConflict(Future<bool> Function(bool force) attempt) async {
+    try {
+      _onResult(await attempt(false));
+    } on DeviceConflict catch (c) {
+      if (!mounted) return;
+      final s = S.of(context);
+
+      final agreed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(s.t('device.conflictTitle')),
+          content: Text(
+            s.t('device.conflictBody').replaceAll(
+                  '{device}',
+                  c.deviceName.isEmpty ? s.t('device.unknown') : c.deviceName,
+                ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(s.t('common.cancel'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(s.t('device.continueHere'))),
+          ],
+        ),
+      );
+      if (agreed != true || !mounted) return;
+
+      try {
+        _onResult(await attempt(true));
+      } on DeviceConflict {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(S.of(context).t('common.error'))),
+        );
+      }
+    }
   }
 
   @override

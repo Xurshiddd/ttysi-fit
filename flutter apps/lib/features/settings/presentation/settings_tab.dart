@@ -41,6 +41,7 @@ class SettingsTab extends ConsumerWidget {
 
           const SizedBox(height: 20),
           _SectionTitle(text: s.t('settings.about')),
+          const _DevicesTile(),
           const _AboutTile(),
 
           const SizedBox(height: 24),
@@ -315,6 +316,23 @@ class _ThemeTile extends ConsumerWidget {
         selected: mode,
         onSelected: (v) => ref.read(themeControllerProvider.notifier).setMode(v),
       ),
+    );
+  }
+}
+
+/// _DevicesTile — "Qurilmalarim va kirishlar".
+///
+/// Sozlamalar ichida: hisob xavfsizligi bilan bog'liq, kundalik amal emas.
+class _DevicesTile extends StatelessWidget {
+  const _DevicesTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    return _SettingsTile(
+      icon: Icons.devices_outlined,
+      title: s.t('device.title'),
+      onTap: () => context.push('/devices'),
     );
   }
 }

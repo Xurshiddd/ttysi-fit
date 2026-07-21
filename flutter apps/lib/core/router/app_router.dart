@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/achievement/presentation/achievements_screen.dart';
 import '../../features/auth/application/auth_controller.dart';
+import '../../features/auth/presentation/devices_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/news/presentation/news_detail_screen.dart';
+import '../../features/notification/presentation/notification_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/reward/presentation/reward_shop_screen.dart';
 
@@ -42,6 +44,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/achievements',
         builder: (context, state) => const AchievementsScreen(),
+      ),
+      // Qurilmalarim — Sozlamalar bo'limidan (push).
+      GoRoute(
+        path: '/devices',
+        builder: (context, state) => const DevicesScreen(),
+      ),
+      // Bildirishnomalar — AppBar dagi qo'ng'iroqdan (push).
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationScreen(),
       ),
       // Do'kon — profildagi kartadan ochiladi (push).
       GoRoute(

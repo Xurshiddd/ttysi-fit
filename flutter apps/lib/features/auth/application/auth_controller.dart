@@ -71,16 +71,26 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  Future<bool> login(String email, String password) async {
+  /// login — dev login.
+  ///
+  /// [force] — foydalanuvchi boshqa qurilmadan chiqarilishiga rozi bo'ldi.
+  /// DeviceConflict xatosi YUQORIGA uzatiladi: uni ekran ushlab, rozilik
+  /// oynasini ko'rsatadi (kontroller UI ko'rsata olmaydi).
+  Future<bool> login(String email, String password, {bool force = false}) async {
     state = state.copyWith(loading: true, error: null);
     try {
-      final tokens = await ref.read(authRepositoryProvider).login(email, password);
+      final tokens = await ref
+          .read(authRepositoryProvider)
+          .login(email, password, force: force);
       await ref.read(tokenStorageProvider).saveTokens(
             access: tokens.accessToken,
             refresh: tokens.refreshToken,
           );
       state = AuthState(isAuthenticated: true, user: tokens.user);
       return true;
+    } on DeviceConflict {
+      state = const AuthState(isAuthenticated: false);
+      rethrow;
     } catch (e) {
       state = AuthState(isAuthenticated: false, error: _errorKey(e));
       return false;
@@ -101,17 +111,21 @@ class AuthController extends Notifier<AuthState> {
   }
 
   /// loginWithHemis — HEMIS OAuth orqali kirish (provider: "student" | "employee").
-  Future<bool> loginWithHemis(String provider) async {
+  Future<bool> loginWithHemis(String provider, {bool force = false}) async {
     state = state.copyWith(loading: true, error: null);
     try {
-      final tokens =
-          await ref.read(authRepositoryProvider).loginWithHemis(provider);
+      final tokens = await ref
+          .read(authRepositoryProvider)
+          .loginWithHemis(provider, force: force);
       await ref.read(tokenStorageProvider).saveTokens(
             access: tokens.accessToken,
             refresh: tokens.refreshToken,
           );
       state = AuthState(isAuthenticated: true, user: tokens.user);
       return true;
+    } on DeviceConflict {
+      state = const AuthState(isAuthenticated: false);
+      rethrow;
     } catch (_) {
       state = const AuthState(isAuthenticated: false, error: 'auth.error');
       return false;
