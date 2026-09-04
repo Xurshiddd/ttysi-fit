@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -53,7 +55,15 @@ class HealthPermissionController extends AsyncNotifier<bool> {
 
     // Android: "boshqa so'ramang" tanlangan bo'lsa qayta so'rash foyda
     // bermaydi — foydalanuvchini sozlamalarga yo'naltirish kerak.
-    if (await Permission.activityRecognition.isPermanentlyDenied) {
+    //
+    // iOS'da bu tekshiruv O'TKAZILMAYDI. U yerda ACTIVITY_RECOGNITION
+    // permission_handler tomonidan CoreMotion (Motion & Fitness) ga
+    // bog'lanadi — ilova esa iOS'da qadamni HealthKit'dan o'qiydi va
+    // CoreMotion'ga umuman tegmaydi. Info.plist da NSMotionUsageDescription
+    // yo'q (ataylab: keraksiz ruxsat so'ramaymiz), shuning uchun bu
+    // chaqiruv iOS'da ma'nosiz va ilovani yiqitish xavfini tug'diradi.
+    if (Platform.isAndroid &&
+        await Permission.activityRecognition.isPermanentlyDenied) {
       return HealthPermissionResult.permanentlyDenied;
     }
     return HealthPermissionResult.denied;

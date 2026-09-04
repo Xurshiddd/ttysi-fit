@@ -8,20 +8,43 @@ services:
       - "8090:8090"
     env_file: .env.local
     environment:
-      # Konteyner ichidan host'dagi Postgres'ga
-      DB_HOST: host.docker.internal
-      # Redis — compose tarmog'i ichida (host porti emas)
+      # Postgres va Redis — compose tarmog'i ichida (host portlari emas)
+      DB_HOST: postgres
+      DB_PORT: "5432"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     profiles: ["api"]   # `docker compose up redis` bunga tegmaydi
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ttysi_fit_postgres
+    restart: unless-stopped
+    ports:
+      # Host 5433 — 5432 da host'ning native PostgreSQL 18 'i turibdi
+      # (Redis 6380 da bo'lgani kabi, to'qnashuvni oldini olish uchun).
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD .env.local da berilishi shart}
+      POSTGRES_DB: ${DB_NAME:-ttysi_fit_dev}
+      # Kunlik chegara/CURRENT_DATE mintaqasi — CLAUDE.md APP_TIMEZONE bilan bir xil
+      TZ: Asia/Tashkent
+      PGTZ: Asia/Tashkent
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ttysi_fit_dev}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -40,4 +63,5 @@ services:
       retries: 5
 
 volumes:
+  pg_data:
   redis_data:

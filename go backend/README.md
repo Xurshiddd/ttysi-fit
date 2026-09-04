@@ -5,28 +5,28 @@ Clean Architecture asosidagi REST API. PostgreSQL (lokal) + Redis (Docker).
 ## Talablar
 
 - Go 1.24+
-- PostgreSQL 15+ (lokal o'rnatilgan)
-- Docker (Redis uchun)
+- Docker (PostgreSQL + Redis uchun)
 - goose (migratsiya): `go install github.com/pressly/goose/v3/cmd/goose@latest`
 
 ## Ishga tushirish (lokal)
 
 ```bash
-# 1. Bog'liqliklarni yuklash
-go mod tidy
+# 1. .env.local yaratish (.env.example dan nusxa) va DB_PASSWORD ni to'ldirish
+#    MUHIM: config APP_ENV bo'yicha .env.local ni o'qiydi — oddiy .env emas.
+cp .env.example .env.local
 
-# 2. Redis ni Docker'da ko'tarish
-make redis-up
+# 2. Postgres + Redis ni Docker'da ko'tarish (baza avtomatik yaratiladi)
+make db-up
 
-# 3. Postgres'da DB yaratish (bir marta)
-#    psql -U postgres -c "CREATE DATABASE ttysi_fit_dev;"
-
-# 4. Migratsiya
+# 3. Migratsiya
 make migrate-up
 
-# 5. Serverni ishga tushirish
+# 4. Serverni ishga tushirish
 make dev
 ```
+
+Portlar: Postgres **5433**, Redis **6380** (host'dagi 5432/6379 band bo'lgani uchun).
+Compose o'zgaruvchilari `.env.local` dan olinadi (`--env-file .env.local`).
 
 Server: http://localhost:8090
 

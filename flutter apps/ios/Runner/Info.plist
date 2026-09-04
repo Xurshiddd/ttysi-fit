@@ -79,6 +79,43 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Ilova tillari (lib/core/i18n/app_localizations.dart bilan bir xil).
+	     Busiz iOS ilovani faqat inglizcha deb hisoblaydi va rus tilidagi
+	     telefonda ham Locale sifatida "en" beradi — avtomatik til tanlash
+	     buziladi. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>uz</string>
+		<string>ru</string>
+		<string>en</string>
+	</array>
+
+	<!-- App Transport Security.
+	     iOS shifrlanmagan http:// so'rovlarni standart holatda rad etadi.
+	     Backend lokal sinovda http://<IP>:8090 da ishlaydi, shuning uchun
+	     FAQAT lokal tarmoq uchun istisno ochamiz.
+
+	     NSAllowsArbitraryLoads QO'YILMAGAN — u butun internetga ochib
+	     beradi va App Store sharhida sabab so'raladi (CLAUDE.md §17.3 #34).
+	     Production API https:// bo'lgach bu blokni butunlay olib tashlash
+	     mumkin. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
+	<!-- iOS 14+ lokal tarmoqdagi manzilga (192.168.x.x) ulanishda ruxsat
+	     so'raydi. Matnsiz so'rov oynasi chiqmaydi va so'rovlar uziladi. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Universitet tarmog'idagi TTYSI_FIT serveriga ulanish uchun</string>
+
+	<!-- Ilova faqat standart HTTPS/TLS ishlatadi — maxsus (non-exempt)
+	     kriptografiya yo'q. Busiz App Store Connect har yuklashda
+	     eksport-shifrlash savolini qayta beradi. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
 	<key>NSHealthShareUsageDescription</key>
 	<string>Qadam va faollik ma'lumotlaringizni reyting uchun sinxronlaymiz</string>
 	<key>NSHealthUpdateUsageDescription</key>

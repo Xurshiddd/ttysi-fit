@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- HealthKit — qadam, kaloriya va masofa HealthKit'dan o'qiladi
+	     (health_service.dart). Bu entitlement bo'lmasa iOS'da
+	     requestAuthorization() muvaffaqiyatsiz tugaydi va foydalanuvchi
+	     reytingda doim 0 qadam bilan turadi.
+
+	     Info.plist dagi NSHealthShareUsageDescription bilan JUFT ishlaydi:
+	     matn — foydalanuvchiga ko'rsatiladigan sabab, bu fayl — tizim
+	     ruxsati. Ikkalasi ham bo'lishi shart. -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+
+	<!-- Faqat o'qish kerak: ilova HealthKit'ga hech narsa yozmaydi.
+	     Clinical (tibbiy) yozuvlar so'ralmaydi. -->
+	<key>com.apple.developer.healthkit.access</key>
+	<array/>
+</dict>
+</plist>

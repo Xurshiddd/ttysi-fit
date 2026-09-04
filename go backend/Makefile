@@ -1,4 +1,4 @@
-.PHONY: dev build test tidy redis-up redis-down migrate-up migrate-down migrate-fresh migrate-create
+.PHONY: dev build test tidy db-up db-down redis-up redis-down migrate-up migrate-down migrate-fresh migrate-create
 
 # ── Ishga tushirish ────────────────────────────────────
 dev:
@@ -13,17 +13,29 @@ test:
 tidy:
 	go mod tidy
 
-# ── Redis (Docker) ─────────────────────────────────────
+# ── Postgres + Redis (Docker) ──────────────────────────
+# Compose o'zgaruvchilari .env.local dan (default .env bo'sh).
+DC := docker compose --env-file .env.local
+
+db-up:
+	$(DC) up -d postgres redis
+
+db-down:
+	$(DC) down
+
 redis-up:
-	docker compose up -d redis
+	$(DC) up -d redis
 
 redis-down:
-	docker compose down
+	$(DC) down
 
 # ── Migratsiya (goose) ─────────────────────────────────
 # O'rnatish: go install github.com/pressly/goose/v3/cmd/goose@latest
 GOOSE_DRIVER ?= postgres
-GOOSE_DBSTRING ?= "host=localhost port=5432 user=postgres password=postgres dbname=ttysi_fit_dev sslmode=disable"
+# Parol .env.local da — Makefile ga hardcode qilinmaydi (§17.2).
+include .env.local
+export
+GOOSE_DBSTRING ?= "host=$(DB_HOST) port=$(DB_PORT) user=$(DB_USER) password=$(DB_PASSWORD) dbname=$(DB_NAME) sslmode=$(DB_SSLMODE)"
 
 migrate-up:
 	goose -dir migrations $(GOOSE_DRIVER) $(GOOSE_DBSTRING) up

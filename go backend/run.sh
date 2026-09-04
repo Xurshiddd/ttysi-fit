@@ -12,6 +12,9 @@ fi
 DB_STRING="host=${DB_HOST:-localhost} port=${DB_PORT:-5432} user=${DB_USER:-postgres} password=${DB_PASSWORD} dbname=${DB_NAME:-ttysi_fit_dev} sslmode=${DB_SSLMODE:-disable}"
 GOOSE="$(go env GOPATH)/bin/goose"
 
+# Compose o'zgaruvchi almashtirishni default .env dan emas, .env.local dan oladi.
+DC="docker compose --env-file $ENV_FILE"
+
 # Windows Application Control %TEMP% dagi exe'ni bloklaydi — shu sababli
 # `go run` o'rniga loyiha ichidagi bin/ ga build qilib ishga tushiramiz.
 # Nom "ttysi_" prefiksi bilan — boshqa loyihalarning exe'lari bilan adashmasin.
@@ -26,7 +29,7 @@ run_cmd() { # run_cmd <nom> <paket> [arg...]
 case "$1" in
   tidy)        go mod tidy ;;
   dev)         run_cmd api ./cmd/api ;;
-  dev-docker)  docker compose --profile api up --build api ;;  # App Control exe'ni bloklasa
+  dev-docker)  $DC --profile api up --build api ;;  # App Control exe'ni bloklasa
   sync)        run_cmd sync ./cmd/sync "${2:-all}" ;;   # ./run.sh sync [all|structures|groups|students|employees]
   create-admin) run_cmd createadmin ./cmd/createadmin "$2" "$3" "$4" ;;  # ./run.sh create-admin <email> <parol> [ism]
   build)       go build -o bin/ttysi_api.exe cmd/api/main.go ;;
@@ -39,9 +42,13 @@ case "$1" in
       go test ./... -v
     fi
     ;;
-  redis-up)    docker compose up -d redis ;;
-  redis-down)  docker compose down ;;
-  db-create)   psql -U "${DB_USER:-postgres}" -c "CREATE DATABASE ${DB_NAME:-ttysi_fit_dev};" ;;
+  db-up)       $DC up -d postgres redis ;;   # Postgres + Redis (Docker)
+  db-down)     $DC down ;;
+  redis-up)    $DC up -d redis ;;
+  redis-down)  $DC down ;;
+  # DB konteyner yaratilishida POSTGRES_DB orqali avtomatik ochiladi;
+  # bu buyruq faqat qo'shimcha baza kerak bo'lganda.
+  db-create)   PGPASSWORD="$DB_PASSWORD" psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5433}" -U "${DB_USER:-postgres}" -c "CREATE DATABASE ${DB_NAME:-ttysi_fit_dev};" ;;
   migrate)     "$GOOSE" -dir migrations postgres "$DB_STRING" up ;;
   migrate-down) "$GOOSE" -dir migrations postgres "$DB_STRING" down ;;
   migrate-fresh)
@@ -50,11 +57,11 @@ case "$1" in
   goose-install) go install github.com/pressly/goose/v3/cmd/goose@latest ;;
   setup)
     go mod tidy
-    docker compose up -d redis
+    $DC up -d postgres redis
     go install github.com/pressly/goose/v3/cmd/goose@latest
-    echo "✅ Tayyor. Endi: ./run.sh db-create && ./run.sh migrate && ./run.sh dev"
+    echo "✅ Tayyor. Endi: ./run.sh migrate && ./run.sh dev"
     ;;
   *)
-    echo "Buyruqlar: setup | tidy | dev | sync [all|structures|groups|students|employees] | build | test | redis-up | redis-down | db-create | goose-install | migrate | migrate-down | migrate-fresh"
+    echo "Buyruqlar: setup | tidy | dev | sync [all|structures|groups|students|employees] | build | test | db-up | db-down | redis-up | redis-down | db-create | goose-install | migrate | migrate-down | migrate-fresh"
     ;;
 esac
